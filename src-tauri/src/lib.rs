@@ -208,6 +208,7 @@ pub fn run() {
             model_channels::reveal_model_channel_key,
             // DeepSeek Harness 回环服务与模型同步
             deepseek_harness::dsh_status,
+            deepseek_harness::dsh_embed_session,
             deepseek_harness::dsh_install,
             deepseek_harness::dsh_uninstall,
             deepseek_harness::dsh_start,

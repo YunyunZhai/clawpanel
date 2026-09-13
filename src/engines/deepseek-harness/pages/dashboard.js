@@ -56,15 +56,16 @@ export function render() {
         <div class="dsh-actions">
           <button class="btn btn-secondary btn-sm" data-action="refresh" ${state.busy ? 'disabled' : ''}>${esc(t('deepseekHarness.refresh'))}</button>
           ${!status.installed ? `<button class="btn btn-primary btn-sm" data-action="install" ${state.busy || status.nodeCompatible === false ? 'disabled' : ''}>${esc(state.busy === 'install' ? t('deepseekHarness.installing') : t('deepseekHarness.install'))}</button>` : ''}
-          ${status.installed && !status.running ? `<button class="btn btn-primary btn-sm" data-action="start" ${state.busy ? 'disabled' : ''}>${esc(state.busy === 'start' ? t('deepseekHarness.starting') : t('deepseekHarness.start'))}</button>` : ''}
-          ${status.running && status.managed ? `<button class="btn btn-danger btn-sm" data-action="stop" ${state.busy ? 'disabled' : ''}>${esc(state.busy === 'stop' ? t('deepseekHarness.stopping') : t('deepseekHarness.stop'))}</button>` : ''}
-          ${status.managedInstalled && !status.running ? `<button class="btn btn-secondary btn-sm" data-action="uninstall" ${state.busy ? 'disabled' : ''}>${esc(state.busy === 'uninstall' ? t('deepseekHarness.uninstalling') : t('deepseekHarness.uninstall'))}</button>` : ''}
+          ${status.managedInstalled && status.updateAvailable && !status.managed && !status.running ? `<button class="btn btn-primary btn-sm" data-action="update" ${state.busy ? 'disabled' : ''}>${esc(state.busy === 'update' ? t('deepseekHarness.updating') : t('deepseekHarness.update', { version: status.targetVersion }))}</button>` : ''}
+          ${status.installed && !status.running && !status.managed ? `<button class="btn btn-primary btn-sm" data-action="start" ${state.busy ? 'disabled' : ''}>${esc(state.busy === 'start' ? t('deepseekHarness.starting') : t('deepseekHarness.start'))}</button>` : ''}
+          ${status.managed ? `<button class="btn btn-danger btn-sm" data-action="stop" ${state.busy ? 'disabled' : ''}>${esc(state.busy === 'stop' ? t('deepseekHarness.stopping') : t('deepseekHarness.stop'))}</button>` : ''}
+          ${status.managedInstalled && !status.managed && !status.running ? `<button class="btn btn-secondary btn-sm" data-action="uninstall" ${state.busy ? 'disabled' : ''}>${esc(state.busy === 'uninstall' ? t('deepseekHarness.uninstalling') : t('deepseekHarness.uninstall'))}</button>` : ''}
           ${status.running && status.managed ? `<a class="btn btn-primary btn-sm" href="#/dsh/workspace">${esc(t('deepseekHarness.openWorkspace'))}</a>` : ''}
           <a class="btn btn-secondary btn-sm" href="#/model-channels">${esc(t('deepseekHarness.modelChannels'))}</a>
         </div>
       </section>
 
-      ${state.error ? `<div class="dsh-error">${esc(state.error)}</div>` : ''}
+      ${state.error || status.error ? `<div class="dsh-error">${esc(state.error || status.error)}</div>` : ''}
       ${status.foreignPort ? `<div class="dsh-error">${esc(t('deepseekHarness.foreignPort'))}</div>` : ''}
       ${status.nodeCompatible === false ? `<div class="dsh-error">${esc(t('deepseekHarness.nodeIncompatible', { requirement: status.nodeRequirement || '^22.19.0 || >=24.0.0' }))}</div>` : ''}
 
@@ -85,6 +86,7 @@ export function render() {
           <div class="form-hint" style="margin:-7px 0 14px">${esc(t('deepseekHarness.portHint'))}</div>
           <div class="dsh-details">
             ${detail(t('deepseekHarness.port'), status.url || `http://127.0.0.1:${state.port}`)}
+            ${detail(t('deepseekHarness.targetVersion'), status.targetVersion)}
             ${detail(t('deepseekHarness.nodeVersion'), `${status.nodeVersion || '—'} · ${status.nodeRequirement || ''}`)}
             ${detail(t('deepseekHarness.runtimePath'), status.path || status.runtimeDir || '—')}
             ${detail(t('deepseekHarness.logPath'), status.logPath || '—')}
@@ -107,9 +109,9 @@ export function render() {
     `
   }
 
-  async function refresh() {
+  async function refresh({ preserveError = false } = {}) {
     state.loading = true
-    state.error = ''
+    if (!preserveError) state.error = ''
     try {
       state.status = await api.dshStatus(state.port)
     } catch (error) {
@@ -131,10 +133,10 @@ export function render() {
         state.port = setDshPort(page.querySelector('#dsh-port')?.value)
         return refresh()
       }
-      if (action === 'install') {
-        const ok = await showConfirm(t('deepseekHarness.installConfirm', { version: state.status?.targetVersion || '0.1.1-rc.2' }), { variant: 'primary' })
+      if (action === 'install' || action === 'update') {
+        const ok = await showConfirm(t('deepseekHarness.installConfirm', { version: state.status?.targetVersion || '—' }), { variant: 'primary' })
         if (!ok) return
-        state.busy = 'install'; draw()
+        state.busy = action; draw()
         await api.dshInstall()
         toast(t('deepseekHarness.installedDone'), 'success')
       } else if (action === 'start') {
@@ -159,7 +161,7 @@ export function render() {
       toast(state.error, 'error')
     } finally {
       state.busy = ''
-      await refresh()
+      await refresh({ preserveError: true })
     }
   })
 

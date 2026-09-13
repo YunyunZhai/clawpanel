@@ -225,9 +225,13 @@ const OPENCLAW_NODE_22_19_VERSION_FLOOR: &str = "2026.6.5";
 const OPENCLAW_NODE_22_19_REQUIREMENT: &str = ">=22.19.0";
 const OPENCLAW_NODE_7_1_VERSION_FLOOR: &str = "2026.7.1";
 const OPENCLAW_NODE_7_1_REQUIREMENT: &str = ">=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0";
+const OPENCLAW_NODE_9_4_REQUIREMENT: &str = ">=24.16.0 <25 || >=26.1.0";
 
 fn fallback_openclaw_node_requirement(version: &str) -> Option<&'static str> {
     let version = parse_version(&base_version(version));
+    if version >= parse_version("2026.9.4") {
+        return Some(OPENCLAW_NODE_9_4_REQUIREMENT);
+    }
     if version >= parse_version(OPENCLAW_NODE_7_1_VERSION_FLOOR) {
         return Some(OPENCLAW_NODE_7_1_REQUIREMENT);
     }
@@ -241,7 +245,7 @@ fn cli_source_prefers_zh_package(cli_source: &str) -> bool {
     matches!(cli_source, "npm-zh" | "standalone" | "portable")
 }
 
-fn find_openclaw_package_json(cli_path: &std::path::Path) -> Option<PathBuf> {
+pub(crate) fn find_openclaw_package_json(cli_path: &std::path::Path) -> Option<PathBuf> {
     let dir = cli_path.parent()?;
     let cli_source = crate::utils::classify_cli_source(&cli_path.to_string_lossy());
     let pkg_names: &[&str] = if cli_source_prefers_zh_package(&cli_source) {
@@ -6303,7 +6307,7 @@ fn supports_native_config_reload(version: &str) -> bool {
     !version.is_empty() && version >= parse_version(OPENCLAW_NATIVE_CONFIG_RELOAD_VERSION_FLOOR)
 }
 
-fn installed_openclaw_version_from_files() -> Option<String> {
+pub(crate) fn installed_openclaw_version_from_files() -> Option<String> {
     let cli_path = crate::utils::resolve_openclaw_cli_path()?;
     read_version_from_installation(std::path::Path::new(&cli_path))
 }

@@ -5,13 +5,13 @@
 
 use serde_json::{json, Map, Value};
 use std::fs::{self, File, OpenOptions};
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
 const DSH_PACKAGE_NAME: &str = "@deepseek-ai/dsh";
-const DSH_PACKAGE_VERSION: &str = "0.1.1-rc.2";
+const DSH_PACKAGE_VERSION: &str = "0.1.5-rc.2";
 const DSH_DEFAULT_PORT: u16 = 3080;
 const DSH_NODE_REQUIREMENT: &str = "^22.19.0 || >=24.0.0";
 const DSH_PNPM_VERSION: &str = "11.7.0";
@@ -26,6 +26,130 @@ const DSH_SETTINGS_NAMESPACE: &str = "llm-pi-ai";
 const DSH_DEFAULT_MODEL_NAMESPACE: &str = "agent-default-model";
 
 static INSTALL_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+#[derive(Clone)]
+struct DshAuthState {
+    pid: u32,
+    port: u16,
+    token: String,
+    cookie: String,
+}
+static DSH_AUTH: std::sync::Mutex<Option<DshAuthState>> = std::sync::Mutex::new(None);
+
+fn redact_dsh_output(text: &str) -> String {
+    regex::Regex::new(r"([?&]token=)[^\s)]+")
+        .unwrap()
+        .replace_all(text, "${1}[REDACTED]")
+        .into_owned()
+}
+
+fn observe_dsh_line(line: &str, pid: u32, port: u16) {
+    if let Some(raw) = line
+        .strip_prefix("dsh web: ")
+        .and_then(|v| v.split_whitespace().next())
+    {
+        if let Ok(url) = reqwest::Url::parse(raw) {
+            if url.scheme() == "http"
+                && url.host_str() == Some("127.0.0.1")
+                && url.port() == Some(port)
+                && url.path() == "/"
+            {
+                if let Some((_, token)) = url.query_pairs().find(|(key, _)| key == "token") {
+                    if regex::Regex::new(r"^[A-Za-z0-9_-]{43}$")
+                        .unwrap()
+                        .is_match(&token)
+                    {
+                        if let Ok(mut auth) = DSH_AUTH.lock() {
+                            if let Some(state) =
+                                auth.as_mut().filter(|s| s.pid == pid && s.port == port)
+                            {
+                                state.token = token.into_owned();
+                                state.cookie.clear();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn dsh_auth_cookie(port: u16) -> Result<String, String> {
+    let state = DSH_AUTH
+        .lock()
+        .ok()
+        .and_then(|s| s.clone())
+        .filter(|s| s.port == port);
+    let Some(state) = state else {
+        return Ok(String::new());
+    };
+    if state.token.is_empty() || !state.cookie.is_empty() {
+        return Ok(state.cookie);
+    }
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(8))
+        .build()
+        .map_err(|_| "创建 Harness 认证客户端失败")?;
+    let response = client
+        .get(format!("http://127.0.0.1:{port}/?token={}", state.token))
+        .send()
+        .await
+        .map_err(|_| "Harness 会话认证失败，请重新启动受管服务")?;
+    let cookie = response
+        .headers()
+        .get("set-cookie")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(';').next())
+        .unwrap_or_default()
+        .to_string();
+    if response.status().as_u16() != 303
+        || response
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            != Some("/")
+        || !regex::Regex::new(r"^dsh-auth-[A-Za-z0-9_-]+=[A-Za-z0-9_.-]+$")
+            .unwrap()
+            .is_match(&cookie)
+    {
+        return Err("Harness 会话认证失败，请重新启动受管服务".into());
+    }
+    if let Ok(mut current) = DSH_AUTH.lock() {
+        if let Some(s) = current
+            .as_mut()
+            .filter(|s| s.pid == state.pid && s.port == port)
+        {
+            s.cookie = cookie.clone();
+        }
+    }
+    Ok(cookie)
+}
+
+fn dsh_wire_method(method: &str, modern: bool) -> String {
+    if !modern {
+        return method.into();
+    }
+    match method {
+        "llm.providers" => "llm/listProviders".into(),
+        "llm.models" => "session/modelCatalog".into(),
+        _ => method.replace('.', "/"),
+    }
+}
+
+fn normalize_dsh_rpc_value(method: &str, value: Value, modern: bool) -> Value {
+    if !modern {
+        return value;
+    }
+    match method {
+        "credentials.describe" => json!({"credentials": value}),
+        "llm.providers" => json!({"providers": value.as_array().into_iter().flatten().map(|p| {
+            json!({"provider": p["id"], "active": true, "name": p["name"]})
+        }).collect::<Vec<_>>()}),
+        _ => value,
+    }
+}
 
 fn runtime_dir() -> PathBuf {
     super::openclaw_dir()
@@ -67,6 +191,31 @@ fn parse_version(value: &str) -> Option<[u64; 3]> {
         parts.next().unwrap_or("0").parse().ok()?,
         parts.next().unwrap_or("0").parse().ok()?,
     ])
+}
+
+fn dsh_has_update(current: &str) -> bool {
+    let (Some(a), Some(b)) = (parse_version(current), parse_version(DSH_PACKAGE_VERSION)) else {
+        return false;
+    };
+    if a != b {
+        return a < b;
+    }
+    // 当前目标是 rc.2；同一核心版本的正式版或更高 RC 不提示降级。
+    let Some(pre) = current
+        .split_once('-')
+        .map(|(_, p)| p.split('+').next().unwrap_or(p))
+    else {
+        return false;
+    };
+    if let Some(rc) = pre.strip_prefix("rc.").and_then(|v| v.parse::<u64>().ok()) {
+        return rc
+            < DSH_PACKAGE_VERSION
+                .split("-rc.")
+                .nth(1)
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0);
+    }
+    pre.starts_with("alpha.") || pre.starts_with("beta.")
 }
 
 fn node_compatible(version: &str) -> bool {
@@ -219,23 +368,40 @@ async fn rpc(method: &str, payload: Value, port: u16) -> Result<Value, String> {
         return Err("DeepSeek Harness RPC 方法名无效".into());
     }
     let rpc_id = rpc_id();
+    let cookie = dsh_auth_cookie(port).await?;
+    let modern =
+        !cookie.is_empty() || parse_version(&managed_version()).is_some_and(|v| v >= [0, 1, 5]);
+    let wire_method = dsh_wire_method(method, modern);
+    let wire_payload = if modern {
+        json!({"args": payload})
+    } else {
+        payload
+    };
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(8))
         .no_proxy()
         .build()
         .map_err(|e| format!("创建 DeepSeek Harness HTTP 客户端失败: {e}"))?;
-    let response = client
-        .post(format!("http://127.0.0.1:{port}/api/{method}"))
+    let request = client
+        .post(format!("http://127.0.0.1:{port}/api/{wire_method}"))
         .json(&json!({
             "type": "client-request",
             "rpcId": rpc_id,
-            "method": method,
-            "payload": payload,
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("DeepSeek Harness 不可达: {e}"))?;
+            "method": wire_method,
+            "payload": wire_payload,
+        }));
+    let response = if cookie.is_empty() {
+        request
+    } else {
+        request.header("cookie", cookie)
+    }
+    .send()
+    .await
+    .map_err(|e| format!("DeepSeek Harness 不可达: {e}"))?;
     let status = response.status();
+    if status.as_u16() == 401 {
+        return Err("Harness 需要会话认证，请停止后由 ClawPanel 重新启动受管服务".into());
+    }
     let body: Value = response
         .json()
         .await
@@ -263,10 +429,13 @@ async fn rpc(method: &str, payload: Value, port: u16) -> Result<Value, String> {
     if body.pointer("/result/ok").and_then(Value::as_bool) != Some(true) {
         return Err(error_message());
     }
-    Ok(body
-        .pointer("/result/value")
-        .cloned()
-        .unwrap_or_else(|| json!({})))
+    Ok(normalize_dsh_rpc_value(
+        method,
+        body.pointer("/result/value")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+        modern,
+    ))
 }
 
 fn namespace<'a>(describe: &'a Value, ns: &str) -> Option<&'a Value> {
@@ -362,6 +531,9 @@ pub async fn dsh_status(port: Option<u16>) -> Result<Value, String> {
         find_command(if cfg!(windows) { "dsh.cmd" } else { "dsh" }).or_else(|| find_command("dsh"))
     };
     let pid = managed_pid();
+    let owned = pid.is_some()
+        && read_pid_record().and_then(|r| r.get("port").and_then(Value::as_u64))
+            == Some(u64::from(port));
     let node_version = node_version();
     let is_port_open = port_open(port).await;
     let (running, summary, error) = if is_port_open {
@@ -377,13 +549,14 @@ pub async fn dsh_status(port: Option<u16>) -> Result<Value, String> {
         "managedInstalled": managed_installed,
         "installRunning": INSTALL_MUTEX.try_lock().is_err(),
         "running": running,
-        "managed": running && pid.is_some(),
+        "managed": owned,
         "portOpen": is_port_open,
-        "foreignPort": is_port_open && !running,
+        "foreignPort": is_port_open && !running && !owned,
         "port": port,
         "url": format!("http://127.0.0.1:{port}"),
         "version": if managed_installed { managed_version() } else { String::new() },
         "targetVersion": DSH_PACKAGE_VERSION,
+        "updateAvailable": dsh_has_update(&managed_version()),
         "packageName": DSH_PACKAGE_NAME,
         "path": if managed_installed { entry.to_string_lossy().to_string() } else { global.as_ref().map(|value| value.to_string_lossy().to_string()).unwrap_or_default() },
         "runtimeDir": runtime_dir().to_string_lossy(),
@@ -399,40 +572,19 @@ pub async fn dsh_status(port: Option<u16>) -> Result<Value, String> {
 
 async fn run_install_command(runtime: PathBuf) -> Result<(), String> {
     let path = super::enhanced_path();
-    let pnpm_available = if cfg!(windows) {
-        Command::new("cmd.exe")
-            .args(["/D", "/S", "/C", "pnpm", "--version"])
-            .env("PATH", &path)
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    } else {
-        Command::new("pnpm")
-            .arg("--version")
-            .env("PATH", &path)
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    };
     let mut command = if cfg!(windows) {
         let mut command = tokio::process::Command::new("cmd.exe");
-        if pnpm_available {
-            command.args(["/D", "/S", "/C", "pnpm"]);
-        } else {
-            command.args([
-                "/D",
-                "/S",
-                "/C",
-                "npm",
-                "exec",
-                "--yes",
-                &format!("pnpm@{DSH_PNPM_VERSION}"),
-                "--",
-            ]);
-        }
+        command.args([
+            "/D",
+            "/S",
+            "/C",
+            "npm",
+            "exec",
+            "--yes",
+            &format!("pnpm@{DSH_PNPM_VERSION}"),
+            "--",
+        ]);
         command
-    } else if pnpm_available {
-        tokio::process::Command::new("pnpm")
     } else {
         let mut command = tokio::process::Command::new("npm");
         command.args(["exec", "--yes", &format!("pnpm@{DSH_PNPM_VERSION}"), "--"]);
@@ -478,6 +630,9 @@ pub async fn dsh_install() -> Result<Value, String> {
     let _guard = INSTALL_MUTEX
         .try_lock()
         .map_err(|_| "DeepSeek Harness 安装任务正在运行".to_string())?;
+    if managed_pid().is_some() {
+        return Err("请先停止 ClawPanel 管理的 DeepSeek Harness，再更新运行时".into());
+    }
     let node = node_version();
     if !node_compatible(&node) {
         return Err(format!(
@@ -571,19 +726,29 @@ fn spawn_web(port: u16) -> Result<u32, String> {
             .ok_or_else(|| "DeepSeek Harness 未安装".to_string())?;
         (command.clone(), Vec::new(), command)
     };
+    if entry.is_file() && parse_version(&managed_version()).is_some_and(|v| v >= [0, 1, 5]) {
+        let overlay = runtime_dir().join("clawpanel-web.yml");
+        fs::write(
+            &overlay,
+            include_str!("../../../scripts/deepseek-harness-web.yml"),
+        )
+        .map_err(|e| format!("写入 Harness Web 启动层失败: {e}"))?;
+        args.extend([
+            "--profile".into(),
+            "web".into(),
+            "--patch".into(),
+            overlay.to_string_lossy().to_string(),
+        ]);
+    } else {
+        args.push("web".into());
+    }
     args.extend([
-        "web".into(),
         "--host".into(),
         "127.0.0.1".into(),
         "--port".into(),
         port.to_string(),
         "--no-open".into(),
     ]);
-    let log = append_log_file()?;
-    let err_log = log
-        .try_clone()
-        .map_err(|e| format!("复制 Harness 日志句柄失败: {e}"))?;
-
     let mut command = if cfg!(windows)
         && program
             .extension()
@@ -603,19 +768,69 @@ fn spawn_web(port: u16) -> Result<u32, String> {
         .env("PATH", super::enhanced_path())
         .env("CLAWPANEL_DSH_MANAGED", "1")
         .stdin(Stdio::null())
-        .stdout(Stdio::from(log))
-        .stderr(Stdio::from(err_log));
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x08000000);
     }
-    let child = command
+    let mut child = command
         .spawn()
         .map_err(|e| format!("启动 DeepSeek Harness 失败: {e}"))?;
     let pid = child.id();
+    if let Ok(mut auth) = DSH_AUTH.lock() {
+        *auth = Some(DshAuthState {
+            pid,
+            port,
+            token: String::new(),
+            cookie: String::new(),
+        });
+    }
+    let stdout = child.stdout.take().ok_or("缺少 Harness stdout")?;
+    let stderr = child.stderr.take().ok_or("缺少 Harness stderr")?;
+    for pipe in [
+        Box::new(stdout) as Box<dyn Read + Send>,
+        Box::new(stderr) as Box<dyn Read + Send>,
+    ] {
+        std::thread::spawn(move || {
+            for line in BufReader::new(pipe).lines().map_while(Result::ok) {
+                observe_dsh_line(&line, pid, port);
+                if let Ok(mut log) = append_log_file() {
+                    let _ = writeln!(log, "{}", redact_dsh_output(&line));
+                }
+            }
+        });
+    }
     write_pid_record(pid, port, &record_entry)?;
     Ok(pid)
+}
+
+// 桌面 WebView 通过上游官方启动 URL 完成 HttpOnly Cookie 交换；不放进状态响应。
+#[tauri::command]
+pub async fn dsh_embed_session(port: Option<u16>) -> Result<Value, String> {
+    let port = port.unwrap_or(DSH_DEFAULT_PORT);
+    let pid = managed_pid().ok_or("请先由 ClawPanel 启动 Harness")?;
+    if read_pid_record().and_then(|r| r.get("port").and_then(Value::as_u64))
+        != Some(u64::from(port))
+    {
+        return Err("请求端口与受管 Harness 不一致".into());
+    }
+    let state = DSH_AUTH
+        .lock()
+        .ok()
+        .and_then(|s| s.clone())
+        .filter(|s| s.pid == pid && s.port == port);
+    let suffix = state
+        .filter(|s| !s.token.is_empty())
+        .map(|s| format!("?token={}", s.token))
+        .unwrap_or_default();
+    if suffix.is_empty() && parse_version(&managed_version()).is_some_and(|v| v >= [0, 1, 5]) {
+        return Err("Harness 会话认证已失效，请停止后重新启动以恢复内嵌页面".into());
+    }
+    Ok(
+        json!({"src": format!("http://127.0.0.1:{port}/{suffix}"), "expiresAt": chrono::Utc::now().timestamp_millis() + 30 * 60 * 1000}),
+    )
 }
 
 #[tauri::command]
@@ -667,7 +882,7 @@ pub async fn dsh_start(port: Option<u16>) -> Result<Value, String> {
     Err(if tail.trim().is_empty() {
         "DeepSeek Harness 启动失败".into()
     } else {
-        format!("DeepSeek Harness 启动失败: {tail}")
+        format!("DeepSeek Harness 启动失败: {}", redact_dsh_output(&tail))
     })
 }
 
@@ -701,6 +916,9 @@ pub async fn dsh_stop(port: Option<u16>) -> Result<Value, String> {
         let _ = Command::new("kill").args(["-9", &pid.to_string()]).output();
     }
     let _ = fs::remove_file(pid_path());
+    if let Ok(mut auth) = DSH_AUTH.lock() {
+        *auth = None;
+    }
     let current = dsh_status(Some(port)).await?;
     if current.get("running").and_then(Value::as_bool) == Some(true) {
         return Err("DeepSeek Harness 进程停止后服务仍可达，请检查是否存在其他实例".into());
@@ -1010,6 +1228,51 @@ impl OrElseEmpty for String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rpc_contract_preserves_legacy_and_maps_modern_results() {
+        assert_eq!(dsh_wire_method("settings.mutate", false), "settings.mutate");
+        assert_eq!(dsh_wire_method("settings.mutate", true), "settings/mutate");
+        assert_eq!(dsh_wire_method("llm.models", true), "session/modelCatalog");
+        assert_eq!(dsh_wire_method("llm.providers", true), "llm/listProviders");
+        let value = json!({"KEY": {"configured": true}});
+        assert_eq!(
+            normalize_dsh_rpc_value("credentials.describe", value.clone(), false),
+            value
+        );
+        assert_eq!(
+            normalize_dsh_rpc_value("credentials.describe", value.clone(), true),
+            json!({"credentials": value})
+        );
+        let providers = normalize_dsh_rpc_value(
+            "llm.providers",
+            json!([{"id": "local", "name": "Local"}]),
+            true,
+        );
+        assert_eq!(
+            providers.pointer("/providers/0/provider"),
+            Some(&json!("local"))
+        );
+        assert_eq!(providers.pointer("/providers/0/active"), Some(&json!(true)));
+    }
+
+    #[test]
+    fn update_does_not_downgrade_stable_or_newer_rc() {
+        for v in ["0.1.1-rc.2", "0.1.5-rc.1", "0.1.5-alpha.2"] {
+            assert!(dsh_has_update(v), "{v}");
+        }
+        for v in ["", "0.1.5-rc.2", "0.1.5-rc.3", "0.1.5", "0.1.6-alpha.1"] {
+            assert!(!dsh_has_update(v), "{v}");
+        }
+    }
+
+    #[test]
+    fn readiness_tokens_never_reach_logs() {
+        let token = "A".repeat(43);
+        let text = format!("dsh web: http://127.0.0.1:3080/?token={token}");
+        assert!(!redact_dsh_output(&text).contains(&token));
+        assert!(redact_dsh_output(&text).contains("[REDACTED]"));
+    }
 
     #[test]
     fn provider_profile_preserves_context_capacity() {

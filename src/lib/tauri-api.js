@@ -12,9 +12,10 @@ export function isTauriRuntime() {
 }
 
 let _tauriListenFn = null
+const _webChannelListeners = new Map()
 
 /**
- * 安全订阅 Tauri 事件。Web 模式下返回 noop unsubscriber，
+ * 安全订阅 Tauri 事件。Web 渠道操作订阅本地流式事件，其余返回 noop unsubscriber，
  * 避免动态 import `@tauri-apps/api/event` 时触碰
  * `window.__TAURI_INTERNALS__.transformCallback` 引发
  * "Cannot read properties of undefined" 报错（issue #256）。
@@ -24,7 +25,12 @@ let _tauriListenFn = null
  *   unlisten()  // 取消订阅
  */
 export async function safeTauriListen(event, cb) {
-  if (!isTauriRuntime()) return () => {}
+  if (!isTauriRuntime()) {
+    if (!event.startsWith('channel-action-')) return () => {}
+    if (!_webChannelListeners.has(event)) _webChannelListeners.set(event, new Set())
+    _webChannelListeners.get(event).add(cb)
+    return () => _webChannelListeners.get(event)?.delete(cb)
+  }
   if (!_tauriListenFn) {
     const mod = await import('@tauri-apps/api/event')
     _tauriListenFn = mod.listen
@@ -413,7 +419,33 @@ export const api = {
   getChannelPluginStatus: (pluginId) => invoke('get_channel_plugin_status', { pluginId }),
   installQqbotPlugin: (version = null) => invoke('install_qqbot_plugin', { version }),
   installChannelPlugin: (packageName, pluginId, version = null) => invoke('install_channel_plugin', { packageName, pluginId, version }),
-  runChannelAction: (platform, action, version = null) => invoke('run_channel_action', { platform, action, version }),
+  installChannelPluginWithLogs: async (packageName, pluginId, version = null, onEvent = () => {}) => {
+    if (isTauriRuntime()) {
+      return pluginId === 'qqbot' ? api.installQqbotPlugin(version) : api.installChannelPlugin(packageName, pluginId, version)
+    }
+    let result, failure
+    await webStreamInvoke('channel_plugin_install_stream', { packageName, pluginId, version }, event => {
+      if (event.event === 'result') result = event.result
+      else if (event.event === 'error') failure = event.error
+      else onEvent(event)
+    })
+    if (failure) throw new Error(failure)
+    if (result === undefined) throw new Error('安装连接已中断，请检查插件状态后重试')
+    invalidate('list_all_plugins')
+    return result
+  },
+  runChannelAction: async (platform, action, version = null) => {
+    if (isTauriRuntime()) return invoke('run_channel_action', { platform, action, version })
+    let result, failure
+    await webStreamInvoke('channel_action_stream', { platform, action, version }, event => {
+      if (event.event === 'result') result = event.result
+      else if (event.event === 'error') failure = event.error
+      else for (const cb of _webChannelListeners.get(event.event) || []) cb({ payload: event.payload })
+    })
+    if (failure) throw new Error(failure)
+    if (result === undefined) throw new Error('渠道操作连接已中断，请检查状态后重试')
+    return result
+  },
   checkWeixinPluginStatus: () => invoke('check_weixin_plugin_status'),
 
   // Agent 渠道绑定管理

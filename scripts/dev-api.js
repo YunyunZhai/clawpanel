@@ -14,6 +14,9 @@ import http from 'http'
 import crypto from 'crypto'
 import { once } from 'events'
 import * as YAML from 'yaml'
+import { createDshAuth, redactDshOutput } from './deepseek-harness-auth.js'
+import { channelPluginStatusAt, channelPluginStatusFromInventory, installChannelPluginAt, redactPluginOutput } from './channel-plugin-install.js'
+import { buildWeixinCompatibilityStatus, resolveWeixinInstallVersion } from './weixin-compat.js'
 import * as skillhubSdk from './lib/skillhub-sdk.js'
 import { createBackgroundJobQueue } from './media-background-queue.js'
 import { normalizeModelApiType } from '../src/lib/model-presets.js'
@@ -37,6 +40,7 @@ import {
   DSH_PACKAGE_NAME,
   DSH_PACKAGE_VERSION,
   dshRpc,
+  dshHasUpdate,
   normalizeDshPort,
   readDshSummary,
   syncDshProvider,
@@ -706,6 +710,7 @@ const OPENCLAW_NODE_22_19_VERSION_FLOOR = '2026.6.5'
 const OPENCLAW_NODE_22_19_REQUIREMENT = '>=22.19.0'
 const OPENCLAW_NODE_7_1_VERSION_FLOOR = '2026.7.1'
 const OPENCLAW_NODE_7_1_REQUIREMENT = '>=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0'
+const OPENCLAW_NODE_9_4_REQUIREMENT = '>=24.16.0 <25 || >=26.1.0'
 
 function ensureArrayContains(value, required) {
   const current = Array.isArray(value)
@@ -1122,9 +1127,10 @@ function openclawNodeRequirement() {
   return fallbackOpenclawNodeRequirement(installedVersion)
 }
 
-function fallbackOpenclawNodeRequirement(installedVersion) {
+export function fallbackOpenclawNodeRequirement(installedVersion) {
   if (!installedVersion) return null
   const version = baseVersion(installedVersion)
+  if (versionGe(version, '2026.9.4')) return OPENCLAW_NODE_9_4_REQUIREMENT
   if (versionGe(version, OPENCLAW_NODE_7_1_VERSION_FLOOR)) return OPENCLAW_NODE_7_1_REQUIREMENT
   if (versionGe(version, OPENCLAW_NODE_22_19_VERSION_FLOOR)) return OPENCLAW_NODE_22_19_REQUIREMENT
   return null
@@ -1564,22 +1570,39 @@ function spawnOpenclawSync(args, options = {}) {
   })
 }
 
-function runOpenclawCaptured(args, { timeoutMs = 120000 } = {}) {
+function runOpenclawCaptured(args, { timeoutMs = 120000, onOutput = () => {} } = {}) {
   const spec = openclawProcessSpec(args)
   return new Promise((resolve, reject) => {
     const child = spawn(spec.command, spec.args, {
       env: { ...process.env },
+      cwd: homedir(),
       windowsHide: true,
+      detached: !isWindows,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     let stdout = ''
     let stderr = ''
+    const pendingLines = { stdout: '', stderr: '' }
     const append = (current, chunk) => (current + String(chunk)).slice(-1024 * 1024)
-    child.stdout?.on('data', chunk => { stdout = append(stdout, chunk) })
-    child.stderr?.on('data', chunk => { stderr = append(stderr, chunk) })
+    const emitLines = (stream, chunk) => {
+      const lines = (pendingLines[stream] + chunk).split(/\r?\n/)
+      pendingLines[stream] = lines.pop() || ''
+      for (const line of lines) onOutput(line + '\n')
+    }
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
+    child.stdout?.on('data', chunk => { stdout = append(stdout, chunk); emitLines('stdout', chunk) })
+    child.stderr?.on('data', chunk => { stderr = append(stderr, chunk); emitLines('stderr', chunk) })
+    let timedOut = false
     const timer = setTimeout(() => {
-      try { child.kill('SIGTERM') } catch {}
-      reject(new Error(`OpenClaw 命令执行超时 (${Math.round(timeoutMs / 1000)}s)`))
+      timedOut = true
+      // Windows shim 会产生 npm/Node 子进程，一并停止才释放安装锁。
+      if (isWindows && child.pid) {
+        const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
+        killer.once('error', () => { try { child.kill('SIGKILL') } catch {} })
+      } else {
+        try { process.kill(-child.pid, 'SIGKILL') } catch { try { child.kill('SIGKILL') } catch {} }
+      }
     }, timeoutMs)
     child.once('error', error => {
       clearTimeout(timer)
@@ -1587,6 +1610,8 @@ function runOpenclawCaptured(args, { timeoutMs = 120000 } = {}) {
     })
     child.once('close', status => {
       clearTimeout(timer)
+      for (const line of Object.values(pendingLines)) if (line) onOutput(line + '\n')
+      if (timedOut) return reject(new Error(`OpenClaw 命令执行超时 (${Math.round(timeoutMs / 1000)}s)\n${redactPluginOutput(stderr).slice(-6000)}`))
       resolve({ status, stdout, stderr })
     })
   })
@@ -3824,6 +3849,7 @@ function platformStorageKey(platform) {
     case 'dingtalk-connector':
       return 'dingtalk-connector'
     case 'weixin':
+    case 'wechat':
       return 'openclaw-weixin'
     default:
       return platform
@@ -3835,6 +3861,7 @@ function platformListId(platform) {
     case 'dingtalk-connector':
       return 'dingtalk'
     case 'openclaw-weixin':
+    case 'wechat':
       return 'weixin'
     default:
       return platform
@@ -11460,6 +11487,13 @@ const DSH_EMBED_STORAGE_MAX_BYTES = 2 * 1024 * 1024
 // DSH 首屏会并行加载数十个插件；限制并复用回环连接，避免低配机器出现瞬时断链。
 const _dshProxyAgent = new http.Agent({ keepAlive: true, maxSockets: 12, maxFreeSockets: 4 })
 
+let _dshAuthSession = null
+async function managedDshRpc(method, payload, { port = DSH_DEFAULT_PORT } = {}) {
+  const auth = _dshAuthSession?.port === port ? _dshAuthSession.auth : null
+  const headers = auth ? await auth.headers() : {}
+  return dshRpc(method, payload, { port, headers, modern: auth?.modern || versionGe(readDshManagedVersion(), '0.1.5') })
+}
+
 function dshRuntimeDir() {
   return path.join(OPENCLAW_DIR, 'clawpanel', 'deepseek-harness')
 }
@@ -11585,6 +11619,7 @@ async function createDshEmbedSession(portValue = DSH_DEFAULT_PORT, storageValue 
     port,
     storage: normalizeDshEmbedStorage(storageValue),
     createdAt: now,
+    upstreamHeaders: await _dshAuthSession?.auth.headers() || {},
     expiresAt: now + DSH_EMBED_IDLE_TTL,
     maxExpiresAt: now + DSH_EMBED_MAX_TTL,
   }
@@ -11680,7 +11715,7 @@ function proxyDshEmbedHttp(req, res, route, session) {
         path: route.upstreamPath,
         method,
         agent: _dshProxyAgent,
-        headers: dshUpstreamHeaders(req.headers, session.port),
+        headers: { ...dshUpstreamHeaders(req.headers, session.port), ...session.upstreamHeaders },
       }, upstreamRes => {
         const contentType = String(upstreamRes.headers['content-type'] || '')
         const rewrite = shouldRewriteDshResponse(contentType, route.upstreamPathname)
@@ -11792,7 +11827,7 @@ export function _handleDshUpgrade(req, socket, head) {
     return true
   }
   const target = net.createConnection(session.port, '127.0.0.1', () => {
-    const headers = dshUpstreamHeaders(req.headers, session.port, { websocket: true })
+    const headers = { ...dshUpstreamHeaders(req.headers, session.port, { websocket: true }), ...session.upstreamHeaders }
     const requestLine = `${req.method || 'GET'} ${route.upstreamPath} HTTP/${req.httpVersion || '1.1'}\r\n`
     const headerLines = Object.entries(headers)
       .flatMap(([name, value]) => Array.isArray(value)
@@ -11837,7 +11872,7 @@ async function dshStatus(portValue = DSH_DEFAULT_PORT) {
   let error = ''
   if (portOpen) {
     try {
-      summary = await readDshSummary({ port })
+      summary = await readDshSummary({ port, rpc: managedDshRpc })
       running = true
     } catch (cause) {
       error = cause?.message || String(cause)
@@ -11848,13 +11883,14 @@ async function dshStatus(portValue = DSH_DEFAULT_PORT) {
     managedInstalled,
     installRunning: _dshInstallRunning,
     running,
-    managed: running && managed,
+    managed: managed && Number(record?.port) === port,
     portOpen,
-    foreignPort: portOpen && !running,
+    foreignPort: portOpen && !running && !managed,
     port,
     url: `http://127.0.0.1:${port}`,
     version: managedInstalled ? readDshManagedVersion() : '',
     targetVersion: DSH_PACKAGE_VERSION,
+    updateAvailable: dshHasUpdate(readDshManagedVersion()),
     packageName: DSH_PACKAGE_NAME,
     path: managedInstalled ? entry : globalCommand,
     runtimeDir: dshRuntimeDir(),
@@ -11899,11 +11935,6 @@ function dshInstallCommandSpec(runtimeDir) {
     ...DSH_BUILD_PACKAGES.map(packageName => `--allow-build=${packageName}`),
     `${DSH_PACKAGE_NAME}@${DSH_PACKAGE_VERSION}`,
   ]
-  if (commandAvailable('pnpm')) {
-    return isWindows
-      ? { command: 'cmd.exe', args: ['/D', '/S', '/C', 'pnpm', ...args] }
-      : { command: 'pnpm', args }
-  }
   return npmCommandSpec(['exec', '--yes', `pnpm@${DSH_PNPM_VERSION}`, '--', ...args])
 }
 
@@ -11936,6 +11967,7 @@ async function installDsh() {
   if (!nodeVersionSatisfiesRequirement(process.version, DSH_NODE_REQUIREMENT)) {
     throw new Error(`DeepSeek Harness ${DSH_PACKAGE_VERSION} 要求 Node.js ${DSH_NODE_REQUIREMENT}，当前为 ${process.version}`)
   }
+  if (isManagedDshProcess(readDshPidRecord())) throw new Error('请先停止 ClawPanel 管理的 DeepSeek Harness，再更新运行时')
   _dshInstallRunning = true
   try {
     fs.mkdirSync(dshRuntimeDir(), { recursive: true })
@@ -11984,22 +12016,38 @@ function spawnDshWeb(port) {
   if (fs.existsSync(entry)) {
     command = process.execPath
     args = [entry, 'web', '--host', '127.0.0.1', '--port', String(port), '--no-open']
+    if (versionGe(readDshManagedVersion(), '0.1.5')) {
+      const overlayPath = path.join(dshRuntimeDir(), 'clawpanel-web.yml')
+      fs.writeFileSync(overlayPath, fs.readFileSync(new URL('./deepseek-harness-web.yml', import.meta.url)))
+      args.splice(1, 1, '--profile', 'web', '--patch', overlayPath)
+    }
   } else {
     command = findGlobalDshCommand()
     if (!command) throw new Error('DeepSeek Harness 未安装')
     args = ['web', '--host', '127.0.0.1', '--port', String(port), '--no-open']
     shell = isWindows && /\.(cmd|bat)$/i.test(command)
   }
-  const logFd = fs.openSync(dshLogPath(), 'a')
+  const auth = createDshAuth(port)
+  _dshAuthSession = { port, auth }
   const child = spawn(command, args, {
     detached: true,
     shell,
     cwd: dshRuntimeDir(),
     env: { ...process.env, PATH: hermesEnhancedPath(), CLAWPANEL_DSH_MANAGED: '1' },
     windowsHide: true,
-    stdio: ['ignore', logFd, logFd],
+    stdio: ['ignore', 'pipe', 'pipe'],
   })
-  fs.closeSync(logFd)
+  for (const stream of [child.stdout, child.stderr]) {
+    let pending = ''
+    stream.setEncoding('utf8')
+    const write = line => { auth.observe(line); fs.appendFileSync(dshLogPath(), redactDshOutput(line) + '\n') }
+    stream.on('data', chunk => {
+      const lines = (pending + chunk).split(/\r?\n/); pending = lines.pop() || ''
+      for (const line of lines) write(line)
+    })
+    stream.on('end', () => { if (pending) write(pending) })
+  }
+  child.on('error', error => { fs.appendFileSync(dshLogPath(), redactDshOutput(error.message) + '\n') })
   child.unref()
   _dshManagedChild = child
   writeJsonAtomic(dshPidPath(), {
@@ -12035,7 +12083,7 @@ async function startDsh(portValue = DSH_DEFAULT_PORT) {
   }
   let tail = ''
   try { tail = fs.readFileSync(dshLogPath(), 'utf8').slice(-4000).trim() } catch {}
-  throw new Error(`DeepSeek Harness 启动失败${tail ? `: ${tail}` : ''}`)
+  throw new Error(`DeepSeek Harness 启动失败${tail ? `: ${redactDshOutput(tail)}` : ''}`)
 }
 
 async function stopDsh(portValue = DSH_DEFAULT_PORT) {
@@ -12061,6 +12109,7 @@ async function stopDsh(portValue = DSH_DEFAULT_PORT) {
   }
   try { fs.unlinkSync(dshPidPath()) } catch {}
   if (_dshManagedChild?.pid === record.pid) _dshManagedChild = null
+  _dshAuthSession = null
   const current = await dshStatus(port)
   if (current.running) throw new Error('DeepSeek Harness 进程停止后服务仍可达，请检查是否存在其他实例')
   return current
@@ -13266,14 +13315,8 @@ const handlers = {
     return { valid: true, warnings: ['该平台暂不支持在线校验'] }
   },
 
-  install_qqbot_plugin({ version } = {}) {
-    const spec = version ? `@tencent-connect/openclaw-qqbot@${version}` : '@tencent-connect/openclaw-qqbot@latest'
-    try {
-      execOpenclawSync(['plugins', 'install', spec], { timeout: 600000, cwd: homedir(), windowsHide: true }, 'QQBot 插件安装失败')
-      return '安装成功'
-    } catch (e) {
-      throw new Error('QQBot 插件安装失败: ' + (e.message || e))
-    }
+  async install_qqbot_plugin({ version } = {}) {
+    return handlers.install_channel_plugin({ packageName: '@tencent-connect/openclaw-qqbot@latest', pluginId: 'qqbot', version })
   },
 
   list_all_plugins() {
@@ -13349,40 +13392,29 @@ const handlers = {
     }
   },
 
-  get_channel_plugin_status({ pluginId }) {
-    if (!pluginId || !pluginId.trim()) throw new Error('pluginId 不能为空')
-    const pid = pluginId.trim()
-    const pluginDir = path.join(OPENCLAW_DIR, 'plugins', 'node_modules', pid)
-    const installed = fs.existsSync(pluginDir) && fs.existsSync(path.join(pluginDir, 'package.json'))
-    // 检测是否为内置插件
-    let builtin = false
-    try {
-      const result = spawnOpenclawSync(['plugins', 'list'], { timeout: 10000, encoding: 'utf8', cwd: homedir(), windowsHide: true })
-      const output = (result.stdout || '') + (result.stderr || '')
-      if (result.status === 0 && output.includes(pid) && output.includes('built-in')) builtin = true
-    } catch {}
-    const cfg = readOpenclawConfigOptional()
-    const allowArr = cfg.plugins?.allow || []
-    const allowed = allowArr.includes(pid)
-    const enabled = !!cfg.plugins?.entries?.[pid]?.enabled
-    const backupDir = path.join(OPENCLAW_DIR, 'plugin-backups', pid)
-    const legacyBackup = path.join(OPENCLAW_DIR, 'plugins', 'node_modules', `${pid}.bak`)
-    return {
-      installed, builtin, path: pluginDir,
-      allowed, enabled,
-      legacyBackupDetected: fs.existsSync(backupDir) || fs.existsSync(legacyBackup),
+  async get_channel_plugin_status({ pluginId }) {
+    const cli = resolveOpenclawCliPath()
+    const pkg = cli && findOpenclawPackageJson(cli)
+    const status = channelPluginStatusAt(OPENCLAW_DIR, pluginId, pkg ? path.dirname(pkg) : null, readOpenclawConfigOptional())
+    // 新版的安装索引位于原生注册表；只在发现新布局时按需异步查询，旧版不反复唤起 CLI。
+    if (!status.installed && !status.builtin && fs.existsSync(path.join(OPENCLAW_DIR, 'npm', 'projects'))) {
+      const result = await runOpenclawCaptured(['plugins', 'list', '--json'], { timeoutMs: 30000 })
+      if (result.status !== 0) throw new Error(`读取插件注册表失败: ${redactPluginOutput(openclawResultOutput(result)).slice(-6000)}`)
+      return channelPluginStatusFromInventory(status, pluginId, result.stdout)
     }
+    return status
   },
 
-  install_channel_plugin({ packageName, pluginId, version }) {
-    if (!packageName || !pluginId) throw new Error('packageName 和 pluginId 不能为空')
-    const spec = version ? `${packageName.trim()}@${version}` : packageName.trim()
-    try {
-      execOpenclawSync(['plugins', 'install', spec], { timeout: 120000, cwd: homedir(), windowsHide: true }, `插件 ${pluginId} 安装失败`)
-      return '安装成功'
-    } catch (e) {
-      throw new Error(`插件 ${pluginId} 安装失败: ` + (e.message || e))
-    }
+  async install_channel_plugin({ packageName, pluginId, version }, onEvent = () => {}, updateExisting = false, replaceExisting = false) {
+    return installChannelPluginAt({
+      root: OPENCLAW_DIR, packageName, pluginId, version, updateExisting, replaceExisting,
+      expectedVersion: replaceExisting ? version : null,
+      hostVersion: readVersionFromInstallation(resolveOpenclawCliPath()),
+      run: (args, onOutput) => runOpenclawCaptured(args, { timeoutMs: 600000, onOutput }),
+      status: id => handlers.get_channel_plugin_status({ pluginId: id }),
+      enable: id => handlers.toggle_plugin({ pluginId: id, enabled: true }),
+      onEvent,
+    })
   },
 
   async pairing_list_channel({ channel }) {
@@ -15937,6 +15969,7 @@ const handlers = {
     if (channel.apiKeyRef) throw new Error('该渠道使用 OpenClaw SecretRef，只能原样同步到 OpenClaw')
     return syncDshProvider({
       channel,
+      rpc: managedDshRpc,
       apiKey: resolveModelApiKey(String(channel.apiKey || '')),
       setDefault: Boolean(setDefault),
       port,
@@ -19418,10 +19451,19 @@ const handlers = {
   install_clawapp() { throw new Error('Web 模式不支持安装 ClawApp 移动端，请使用桌面客户端') },
   get_clawapp_status() { return { installed: false, mode: 'web' } },
 
-  // —— 渠道插件状态/操作（暂未在 Node 实现，先抛友好错误）——
-  check_weixin_plugin_status() {
-    // 静默返回未安装即可，UI 会显示"未安装"
-    return { installed: false, version: null, plugin: null }
+  // —— 渠道插件状态：旧 extensions 和新版原生注册表共用检测链路 ——
+  async check_weixin_plugin_status() {
+    const status = await handlers.get_channel_plugin_status({ pluginId: 'openclaw-weixin' })
+    let installedVersion = null, latestVersion = null
+    if (status.installed || status.builtin) {
+      try { installedVersion = JSON.parse(fs.readFileSync(path.join(status.path, 'package.json'), 'utf8')).version || null } catch {}
+    }
+    try {
+      const response = await fetch('https://registry.npmjs.org/@tencent-weixin/openclaw-weixin/latest', { signal: AbortSignal.timeout(8000) })
+      if (response.ok) latestVersion = (await response.json()).version || null
+    } catch {}
+    return { ...status, installedVersion, latestVersion, extensionDir: status.path,
+      ...buildWeixinCompatibilityStatus(readVersionFromInstallation(resolveOpenclawCliPath()), installedVersion) }
   },
   async diagnose_channel({ platform, accountId } = {}) {
     if (!platform || !String(platform).trim()) throw new Error('platform 不能为空')
@@ -19464,8 +19506,39 @@ const handlers = {
     }
     return result
   },
-  run_channel_action() {
-    throw new Error('Web 模式暂未实现渠道操作，请使用桌面客户端')
+  async run_channel_action({ platform, action, version } = {}, onEvent = () => {}) {
+    const emit = (event, values) => onEvent({ event, payload: { platform, action, ...values } })
+    const channel = platformStorageKey(platform)
+    if (channel === 'openclaw-weixin' && action === 'install') {
+      const current = await handlers.check_weixin_plugin_status()
+      if (!current.installAllowed) throw new Error(current.installError)
+      const target = resolveWeixinInstallVersion(current.hostVersion, version)
+      return handlers.install_channel_plugin({ packageName: '@tencent-weixin/openclaw-weixin', pluginId: channel, version: target }, event => {
+        if (event.event === 'plugin-log') emit('channel-action-log', { message: event.payload, kind: 'info' })
+        if (event.event === 'plugin-progress') emit('channel-action-progress', { progress: event.payload })
+      }, true, true)
+    }
+    if (action !== 'login' || !['openclaw-weixin', 'zalouser', 'whatsapp'].includes(channel)) throw new Error('不支持的渠道操作')
+    let pendingLine = ''
+    const onOutput = chunk => {
+      pendingLine += chunk
+      const lines = pendingLine.split(/\r?\n/)
+      pendingLine = lines.pop() || ''
+      for (const line of lines) emit('channel-action-log', { message: redactPluginOutput(line), kind: 'info' })
+    }
+    const result = await runOpenclawCaptured(['channels', 'login', '--channel', channel], { timeoutMs: 300000, onOutput })
+    if (pendingLine) emit('channel-action-log', { message: redactPluginOutput(pendingLine), kind: 'info' })
+    const output = redactPluginOutput(openclawResultOutput(result))
+    if (result.status !== 0) throw new Error(`渠道登录失败（退出码 ${result.status}）\n${output}`)
+    if (channel === 'openclaw-weixin') {
+      const cfg = readOpenclawConfigOptional()
+      cfg.channels ||= {}
+      cfg.channels[channel] ||= {}
+      cfg.channels[channel].enabled = true
+      writeOpenclawConfigFile(cfg)
+    }
+    emit('channel-action-progress', { progress: 100 })
+    return output || '操作完成'
   },
   repair_qqbot_channel_setup() {
     throw new Error('Web 模式暂未实现 QQ Bot 自动修复，请使用桌面客户端')
@@ -20291,6 +20364,32 @@ async function _apiMiddleware(req, res, next) {
   }
 
   const activeInst = getActiveInstance()
+
+  if (cmd === 'channel_plugin_install_stream' || cmd === 'channel_action_stream') {
+    const args = await readBody(req)
+    if (activeInst.type !== 'local' && activeInst.endpoint && !ALWAYS_LOCAL.has(cmd)) {
+      await proxyStreamToInstance(activeInst, cmd, args, req, res)
+    } else {
+      res.setHeader('Content-Type', 'application/x-ndjson')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('X-Accel-Buffering', 'no')
+      res.flushHeaders?.()
+      const send = event => { if (!res.destroyed) res.write(JSON.stringify(event) + '\n') }
+      const heartbeat = setInterval(() => send({ event: 'heartbeat' }), 10000)
+      try {
+        const result = cmd === 'channel_action_stream'
+          ? await handlers.run_channel_action(args, send)
+          : await handlers.install_channel_plugin(args, send)
+        send({ event: 'result', result })
+      } catch (error) {
+        send({ event: 'error', error: redactPluginOutput(error.message) })
+      } finally {
+        clearInterval(heartbeat)
+        res.end()
+      }
+    }
+    return
+  }
 
   if (cmd === 'hermes_agent_run_stream') {
     const args = await readBody(req)

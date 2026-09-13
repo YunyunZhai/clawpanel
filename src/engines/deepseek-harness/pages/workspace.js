@@ -112,11 +112,7 @@ export function render() {
     try {
       state.status = await api.dshStatus(state.port)
       if (state.status?.running && state.status?.managed) {
-        if (isTauriRuntime()) {
-          state.embedUrl = `${state.status.url}/`
-          state.embedPort = state.status.port
-          state.embedExpiresAt = 0
-        } else if (!state.embedUrl || state.embedPort !== state.status.port || Date.now() > state.embedExpiresAt - 60000) {
+        if (!state.embedUrl || state.embedPort !== state.status.port || Date.now() > state.embedExpiresAt - 60000) {
           try {
             const session = await api.dshEmbedSession(state.status.port, readDshWebStorage())
             state.embedUrl = session.src
@@ -149,11 +145,6 @@ export function render() {
     const action = button.dataset.action
     if (action === 'refresh') return refresh()
     if (action === 'reload-frame') {
-      if (isTauriRuntime()) {
-        const frame = page.querySelector('#dsh-workspace-frame')
-        if (frame && state.status?.url) frame.src = `${state.status.url}/?clawpanelReload=${Date.now()}`
-        return
-      }
       state.embedUrl = ''
       state.embedExpiresAt = 0
       return refresh()
