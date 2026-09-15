@@ -11,6 +11,9 @@ import { toast } from '../components/toast.js'
 import { showModal, showConfirm } from '../components/modal.js'
 import { icon as svgIcon } from '../lib/icons.js'
 import { t } from '../lib/i18n.js'
+import { ChatQuestions } from '../lib/chat-questions.js'
+import { createQuestionPanel } from '../components/chat-question-card.js'
+import '../style/chat-questions.css'
 
 const RENDER_THROTTLE = 30
 const STORAGE_SESSION_KEY = 'clawpanel-last-session'
@@ -79,6 +82,8 @@ let _responseWatchdog = null, _postFinalCheck = null
 let _ultimateTimer = null, _sendTimestamp = 0
 let _attachments = []
 let _hasEverConnected = false
+let _questions = null, _questionPanel = null, _waitingQuestionSession = null
+let _streamTimerRevision = 0
 let _availableModels = []
 let _primaryModel = ''
 let _selectedModel = ''
@@ -222,6 +227,7 @@ export async function render() {
       <button class="chat-scroll-btn" id="chat-scroll-btn" style="display:none">↓</button>
       <div class="chat-cmd-panel" id="chat-cmd-panel" style="display:none"></div>
       <div class="chat-attachments-preview" id="chat-attachments-preview" style="display:none"></div>
+      <div class="chat-question-panel" id="chat-question-panel" hidden></div>
       <div class="chat-input-area">
         <input type="file" id="chat-file-input" accept="image/*" multiple style="display:none">
         <button class="chat-attach-btn" id="chat-attach-btn" title="${t('chat.uploadImage')}">
@@ -295,6 +301,8 @@ export async function render() {
   `
 
   _messagesEl = page.querySelector('#chat-messages')
+  _questions = new ChatQuestions(wsClient, onQuestionsChanged)
+  _questionPanel = createQuestionPanel(page.querySelector('#chat-question-panel'), _questions)
   _textarea = page.querySelector('#chat-input')
   _sendBtn = page.querySelector('#chat-send-btn')
   _statusDot = page.querySelector('#chat-status-dot')
@@ -1181,6 +1189,7 @@ async function connectGateway() {
     // 订阅状态变化（订阅式，返回 unsub）
     _unsubStatus = wsClient.onStatusChange((status, errorMsg) => {
       if (!_pageActive) return
+      if (status !== 'ready' && status !== 'connected') _questions?.setConnected(false)
       updateStatusDot(status)
       const bar = document.getElementById('chat-disconnect-bar')
       const overlay = document.getElementById('chat-connect-overlay')
@@ -1234,6 +1243,7 @@ async function connectGateway() {
       }
       // 始终刷新会话列表（无论是否有 sessionKey）
       refreshSessionList()
+      void _questions?.setConnected(true)
     })
 
     _unsubEvent = wsClient.onEvent((msg) => {
@@ -1250,6 +1260,7 @@ async function connectGateway() {
       updateSessionTitle()
       loadHistory()
       refreshSessionList()
+      void _questions?.setConnected(true)
       return
     }
 
@@ -1378,9 +1389,13 @@ async function switchSession(newKey, options = {}) {
     discardWorkspaceChanges()
   }
   _sessionKey = newKey
+  _waitingQuestionSession = null
+  _cancelResponseWatchdog()
   localStorage.setItem(STORAGE_SESSION_KEY, newKey)
   _lastHistoryHash = ''
   resetStreamState()
+  onQuestionsChanged()
+  void _questions?.refresh()
   updateSessionTitle()
   clearMessages()
   loadHistory()
@@ -1664,6 +1679,7 @@ function toggleCmdPanel() {
 // ── 消息发送 ──
 
 function sendMessage() {
+  if (hasPendingQuestion()) { toast(t('chat.questionAnswerFirst'), 'info'); return }
   const text = _textarea.value.trim()
   if (!text && !_attachments.length) return
   if (!wsClient.gatewayReady || !_sessionKey) {
@@ -1682,6 +1698,7 @@ function sendMessage() {
 }
 
 async function doSend(text, attachments = []) {
+  if (hasPendingQuestion()) return
   if (!wsClient.gatewayReady || !_sessionKey) {
     toast(t('chat.gatewayNotReadySend'), 'warning')
     return
@@ -1712,6 +1729,7 @@ async function doSend(text, attachments = []) {
 }
 
 function processMessageQueue() {
+  if (hasPendingQuestion()) return
   if (_messageQueue.length === 0 || _isSending || _isStreaming || _isAwaitingResponse) return
   const msg = _messageQueue.shift()
   if (typeof msg === 'string') doSend(msg, [])
@@ -1725,6 +1743,53 @@ function stopGeneration() {
   })
   _cancelResponseWatchdog()
   resetStreamState()
+  onQuestionsChanged()
+}
+
+function hasPendingQuestion() { return !!_questions?.hasPending(_sessionKey) }
+
+function onQuestionsChanged() {
+  if (!_pageActive) return
+  _questionPanel?.render(_sessionKey)
+  if (hasPendingQuestion()) {
+    _waitingQuestionSession = _sessionKey
+    _cancelResponseWatchdog()
+    clearTimeout(_streamSafetyTimer)
+    _streamTimerRevision++
+    clearTimeout(_postFinalCheck)
+    _isAwaitingResponse = true
+    _currentRunId ||= _questions.forSession(_sessionKey).find(r => r.status === 'pending')?.runId || null
+    showTyping(false)
+  } else if (_waitingQuestionSession === _sessionKey && _sessionKey) {
+    _waitingQuestionSession = null
+    // 人工等待不计入输出空闲时间；回答/取消后继续接收原 run 的输出。
+    _isAwaitingResponse = !!(_isStreaming || _currentRunId)
+    if (_isAwaitingResponse) {
+      _sendTimestamp = Date.now()
+      if (_isStreaming) armStreamSafetyTimer()
+      else _startResponseWatchdog()
+      showTyping(true, t('chat.aiProcessing'))
+    } else {
+      showTyping(false)
+      processMessageQueue()
+    }
+  }
+  updateSendState()
+}
+
+function armStreamSafetyTimer() {
+  clearTimeout(_streamSafetyTimer)
+  const revision = ++_streamTimerRevision
+  if (hasPendingQuestion()) return
+  const key = _sessionKey
+  _streamSafetyTimer = setTimeout(async () => {
+    // 事件遗漏/重连时，先向 Gateway 确认是否正等待人工回答。
+    await _questions?.refresh()
+    if (revision !== _streamTimerRevision || !_pageActive || key !== _sessionKey || hasPendingQuestion() || !_isStreaming) return
+    appendSystemMessage(t('chat.streamTimeout'))
+    resetStreamState()
+    processMessageQueue()
+  }, 90000)
 }
 
 // ── 事件处理（参照 clawapp 实现） ──
@@ -1732,9 +1797,13 @@ function stopGeneration() {
 function handleEvent(msg) {
   const { event, payload } = msg
   if (!payload) return
+  if (_questions?.handleEvent(msg)) return
 
   // ── 处理所有 agent 事件（OpenClaw 4.5+ 结构化进度） ──
   if (event === 'agent') {
+    // 其他 Agent 的活动既不更新当前聊天提示，也不延长它的超时。
+    if (payload.sessionKey ? payload.sessionKey !== _sessionKey : !payload.runId || payload.runId !== _currentRunId) return
+    if (hasPendingQuestion()) return
     // 任何 agent 事件都说明 OpenClaw 在活跃处理，重置看门狗
     _resetWatchdogOnActivity()
 
@@ -1902,21 +1971,10 @@ function handleChatEvent(payload) {
         updateSendState()
       }
       _currentAiText = c.text
-      // 每次收到 delta 重置安全超时（90s 无新 delta 则强制结束）
-      clearTimeout(_streamSafetyTimer)
-      _streamSafetyTimer = setTimeout(() => {
-        if (_isStreaming) {
-          console.warn('[chat] 流式输出超时（90s 无新数据），强制结束')
-          if (_currentAiBubble && _currentAiText) {
-            _currentAiBubble.innerHTML = renderMarkdown(_currentAiText)
-          }
-          appendSystemMessage(t('chat.streamTimeout'))
-          resetStreamState()
-          processMessageQueue()
-        }
-      }, 90000)
       throttledRender()
     }
+    if (_isStreaming) armStreamSafetyTimer()
+    if (hasPendingQuestion()) onQuestionsChanged()
     return
   }
 
@@ -1953,8 +2011,9 @@ function handleChatEvent(payload) {
     // 如果流式阶段没有创建 bubble，从 final message 中提取
     if (!_currentAiBubble && hasContent) {
       _currentAiBubble = createStreamBubble()
-      _currentAiText = finalText
     }
+    // final 是权威全文，不沿用最后一帧不完整的 delta。
+    if (finalText) _currentAiText = finalText
     if (_currentAiBubble) {
       if (_currentAiText) _currentAiBubble.innerHTML = renderMarkdown(_currentAiText)
       appendImagesToEl(_currentAiBubble, _currentAiImages)
@@ -2014,6 +2073,7 @@ function handleChatEvent(payload) {
       }
     }
     resetStreamState()
+    onQuestionsChanged()
     _schedulePostFinalCheck()
     processMessageQueue()
     return
@@ -2278,6 +2338,7 @@ const WATCHDOG_INTERVAL = 15000  // 15s 轮询间隔
 const ULTIMATE_TIMEOUT = 180000  // 3 分钟终极超时
 
 function _startResponseWatchdog() {
+  if (hasPendingQuestion()) return
   // 只清除轮询定时器，不清除终极超时（终极超时应持续到收到响应）
   clearTimeout(_responseWatchdog)
   _responseWatchdog = null
@@ -2285,9 +2346,12 @@ function _startResponseWatchdog() {
 
   // 启动终极超时（3分钟内如果没有收到任何 chat 事件则放弃）
   if (!_ultimateTimer) {
-    _ultimateTimer = setTimeout(() => {
+    const key = _sessionKey
+    _ultimateTimer = setTimeout(async () => {
       _ultimateTimer = null
-      if (!_isStreaming && _sessionKey && _pageActive) {
+      const sentAt = _sendTimestamp
+      await _questions?.refresh()
+      if (!_isStreaming && _isAwaitingResponse && key === _sessionKey && sentAt === _sendTimestamp && !hasPendingQuestion() && _pageActive) {
         console.warn('[chat] 终极超时: 3分钟无 chat 回复')
         showTyping(false)
         appendSystemMessage(t('chat.responseTimeout', { seconds: Math.round(ULTIMATE_TIMEOUT / 1000) }))
@@ -2301,7 +2365,9 @@ function _startResponseWatchdog() {
   _responseWatchdog = setTimeout(async () => {
     _responseWatchdog = null
     // 如果还在等待（未开始流式），强制刷新历史
-    if (!_isStreaming && _sessionKey && _messagesEl && _pageActive) {
+    if (!_isStreaming && _sessionKey && _messagesEl && _pageActive && !hasPendingQuestion()) {
+      await _questions?.refresh()
+      if (hasPendingQuestion() || !_pageActive) return
       const elapsed = Math.round((Date.now() - _sendTimestamp) / 1000)
       console.log(`[chat] 响应看门狗触发：${elapsed}s 无 delta，刷新历史`)
       const oldHash = _lastHistoryHash
@@ -2324,25 +2390,11 @@ function _startResponseWatchdog() {
 }
 
 function _resetWatchdogOnActivity() {
-  // agent 事件说明 OpenClaw 在活跃处理，重置轮询看门狗（但不重置终极超时）
-  if (_responseWatchdog) {
-    clearTimeout(_responseWatchdog)
-    _responseWatchdog = setTimeout(async () => {
-      _responseWatchdog = null
-      if (!_isStreaming && _sessionKey && _messagesEl && _pageActive) {
-        const elapsed = _sendTimestamp ? Math.round((Date.now() - _sendTimestamp) / 1000) : 0
-        console.log(`[chat] agent 活跃后看门狗触发：${elapsed}s`)
-        const oldHash = _lastHistoryHash
-        _lastHistoryHash = ''
-        await loadHistory()
-        if (_lastHistoryHash && _lastHistoryHash !== oldHash) {
-          showTyping(false)
-          _cancelUltimateTimer()
-        } else {
-          _startResponseWatchdog()
-        }
-      }
-    }, WATCHDOG_INTERVAL)
+  if (hasPendingQuestion()) return
+  if (_isStreaming) armStreamSafetyTimer()
+  if (_isAwaitingResponse) {
+    _cancelUltimateTimer()
+    _startResponseWatchdog()
   }
 }
 
@@ -2358,6 +2410,7 @@ function _cancelUltimateTimer() {
 }
 
 function _schedulePostFinalCheck() {
+  if (hasPendingQuestion()) return
   clearTimeout(_postFinalCheck)
   _postFinalCheck = setTimeout(async () => {
     _postFinalCheck = null
@@ -2372,6 +2425,7 @@ function _schedulePostFinalCheck() {
 
 function resetStreamState() {
   clearTimeout(_streamSafetyTimer)
+  _streamTimerRevision++
   clearInterval(_typingElapsedInterval)
   _typingElapsedInterval = null
   if (_currentAiBubble && (_currentAiText || _currentAiImages.length || _currentAiVideos.length || _currentAiAudios.length || _currentAiFiles.length || _currentAiTools.length)) {
@@ -3201,6 +3255,7 @@ function appendHostedTarget(text) {
 }
 
 function maybeTriggerHostedRun() {
+  if (_questions?.hasPending(getHostedBoundSessionKey())) return
   if (!_hostedSessionConfig?.enabled) return
   if (_hostedRuntime.status === HOSTED_STATUS.IDLE || _hostedRuntime.status === HOSTED_STATUS.PAUSED || _hostedRuntime.status === HOSTED_STATUS.ERROR) return
   if (_hostedRuntime.pending || _hostedBusy) return
@@ -3246,6 +3301,7 @@ function detectStopFromText(text) {
 }
 
 async function runHostedAgentStep() {
+  if (_questions?.hasPending(getHostedBoundSessionKey())) return
   if (_hostedBusy || !_hostedSessionConfig?.enabled) return
   const prompt = (_hostedSessionConfig.prompt || '').trim()
   const hostedSessionKey = getHostedBoundSessionKey() || getHostedSessionKey()
@@ -3432,6 +3488,12 @@ function appendHostedOutput(text) {
 
 export function cleanup() {
   _pageActive = false
+  _questions?.dispose()
+  _questionPanel?.dispose()
+  _questions = null
+  _questionPanel = null
+  _waitingQuestionSession = null
+  _streamTimerRevision++
   if (_unsubEvent) { _unsubEvent(); _unsubEvent = null }
   if (_unsubReady) { _unsubReady(); _unsubReady = null }
   if (_unsubStatus) { _unsubStatus(); _unsubStatus = null }
