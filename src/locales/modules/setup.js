@@ -68,6 +68,8 @@ export default {
   methodStandaloneR2: _('独立安装包 · CDN 加速（国内推荐，自带 Node.js，无需 npm）', 'Standalone Package · CDN (Recommended for China, includes Node.js, no npm needed)', '獨立安裝包 · CDN 加速（國內推薦，自帶 Node.js，無需 npm）'),
   methodStandaloneGithub: _('独立安装包 · GitHub（CDN 不可用时备选）', 'Standalone Package · GitHub (Fallback when CDN unavailable)', '獨立安裝包 · GitHub（CDN 不可用時備選）'),
   methodNpm: _('npm 编译安装（传统方式，需要 Node.js + npm + 网络）', 'npm Install (Traditional, requires Node.js + npm + network)', 'npm 編译安裝（傳統方式，需要 Node.js + npm + 網路）'),
+  methodPortableNpm: _('便携 npm（安装到 U盘）', 'Portable npm (Install to USB)', '可攜 npm（安裝到 USB）'),
+  methodHintPortableNpm: _('在 U 盘内完成：自动下载 Node.js 运行时，用 npm 安装最新版本到 U 盘引擎目录，不写宿主机文件。', 'All on USB: auto-downloads Node.js, runs npm install inside USB engines directory, zero host writes.', '在 USB 內完成：自動下載 Node.js 執行時，以 npm 安裝最新版到 USB 引擎目錄，不寫宿主機檔案。'),
   registryLabel: _('npm 镜像源', 'npm Registry', 'npm 鏡像源'),
   registryTaobao: _('淘宝镜像（推荐国内用户）', 'Taobao Mirror (Recommended for China)', '淘寶鏡像（推薦國內使用者）'),
   registryNpm: _('npm 官方源', 'npm Official'),
