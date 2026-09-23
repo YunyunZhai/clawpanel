@@ -2590,6 +2590,8 @@
     "methodStandaloneR2": "独立安装包 · CDN 加速（国内推荐，自带 Node.js，无需 npm）",
     "methodStandaloneGithub": "独立安装包 · GitHub（CDN 不可用时备选）",
     "methodNpm": "npm 编译安装（传统方式，需要 Node.js + npm + 网络）",
+    "methodPortableNpm": "便携 npm（安装到 U盘）",
+    "methodHintPortableNpm": "在 U 盘内完成：自动下载 Node.js 运行时，用 npm 安装最新汉化/官方版到 U 盘引擎目录，不写宿主机文件。适合想跟随上游最新版本的便携用户。",
     "registryLabel": "npm 镜像源",
     "registryTaobao": "淘宝镜像（推荐国内用户）",
     "registryNpm": "npm 官方源",

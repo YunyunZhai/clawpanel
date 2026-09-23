@@ -241,6 +241,27 @@ fn fallback_openclaw_node_requirement(version: &str) -> Option<&'static str> {
     None
 }
 
+/// engines.node 要求范围 → 候选 Node 发行版版本列表（按推荐顺序）。
+///
+/// 表是写死的（避免联网探测），挑选官方长期维护且命中 prebuilt 二进制 ABI 的版本。
+/// 未命中范围时回退默认候选。
+fn node_distribution_for(requirement: &str) -> &'static [&'static str] {
+    if requirement.contains("24.16") && requirement.contains("26.1") {
+        // >=24.16.0 <25 || >=26.1.0 → 优先 26 系（更新 LTS 区间），次选 24
+        return &["26.1.0", "24.16.0"];
+    }
+    if requirement.contains("22.16") || (requirement.contains("22.22") && requirement.contains("25.9")) {
+        // >=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0 → 优先 24（LTS），次选 22
+        return &["24.16.0", "22.22.3"];
+    }
+    if requirement.contains("22.19") {
+        // >=22.19.0 → 22 LTS
+        return &["22.22.3"];
+    }
+    // 默认候选：22 LTS（保守，兼容性最广）
+    &["22.22.3"]
+}
+
 fn cli_source_prefers_zh_package(cli_source: &str) -> bool {
     matches!(cli_source, "npm-zh" | "standalone" | "portable")
 }
@@ -503,6 +524,55 @@ fn promote_nested_standalone_dir(
     if !(nested.exists() && nested.join(node_bin).exists()) {
         return Ok(());
     }
+
+    for entry in std::fs::read_dir(&nested)
+        .map_err(|e| format!("读取目录 {} 失败: {e}", nested.display()))?
+    {
+        let entry = entry.map_err(|e| format!("读取目录项失败: {e}"))?;
+        let dest = install_dir.join(entry.file_name());
+        if dest.exists() {
+            let meta = std::fs::metadata(&dest)
+                .map_err(|e| format!("读取旧文件 {} 失败: {e}", dest.display()))?;
+            if meta.is_dir() {
+                std::fs::remove_dir_all(&dest)
+                    .map_err(|e| format!("删除旧目录 {} 失败: {e}", dest.display()))?;
+            } else {
+                std::fs::remove_file(&dest)
+                    .map_err(|e| format!("删除旧文件 {} 失败: {e}", dest.display()))?;
+            }
+        }
+        std::fs::rename(entry.path(), &dest)
+            .map_err(|e| format!("移动 {} 失败: {e}", dest.display()))?;
+    }
+    std::fs::remove_dir_all(&nested)
+        .map_err(|e| format!("删除临时目录 {} 失败: {e}", nested.display()))?;
+    Ok(())
+}
+
+/// 通用"提升嵌套目录"：把 install_dir 下唯一一个含 marker_bin 文件的子目录内容提升到 install_dir 根。
+/// 用于 node 官方 zip 解压后 `node-v24.x.0-win-x64/` 嵌套一层的场景（与 standalone 的 `openclaw/` 同构）。
+#[cfg(any(target_os = "windows", test))]
+fn promote_nested_dir_containing(
+    install_dir: &std::path::Path,
+    marker_bin: &str,
+) -> Result<(), String> {
+    // 找 install_dir 下唯一的、含 marker_bin 的直接子目录
+    if install_dir.join(marker_bin).is_file() {
+        return Ok(()); // 已在根，无需提升
+    }
+    let nested = std::fs::read_dir(install_dir)
+        .map_err(|e| format!("读取目录 {} 失败: {e}", install_dir.display()))?
+        .flatten()
+        .find(|entry| {
+            entry.path().is_dir() && entry.path().join(marker_bin).is_file()
+        })
+        .ok_or_else(|| {
+            format!(
+                "解压后未找到含 {} 的嵌套目录",
+                marker_bin
+            )
+        })?
+        .path();
 
     for entry in std::fs::read_dir(&nested)
         .map_err(|e| format!("读取目录 {} 失败: {e}", nested.display()))?
@@ -3090,6 +3160,13 @@ fn should_fallback_standalone_to_npm(
     method == "auto" && current_install_mode != "standalone" && current_install_mode != "portable"
 }
 
+/// 便携模式下 standalone 不可用时，是否转投"U 盘内 npm 安装"链路。
+/// 便携模式绝不落宿主 npm -g，但可以在 U 盘内完成 node + npm 安装。
+/// method 一般为 auto；用户显式选 portable-npm 或 npm 时也允许。
+fn should_fallback_standalone_to_portable_npm(portable_mode: bool, method: &str) -> bool {
+    portable_mode && matches!(method, "auto" | "npm" | "portable-npm")
+}
+
 fn standalone_install_version(
     requested_version: Option<&str>,
     recommended_version: Option<&str>,
@@ -3882,6 +3959,554 @@ fn standalone_work_dir(install_dir: &std::path::Path, suffix: &str) -> std::path
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."))
         .join(format!("{name}.{suffix}"))
+}
+
+/// U 盘便携模式下确保 Node.js 运行时完备（含 npm）。
+///
+/// 目标目录：`<portable_root>/runtimes/node`，须同时满足：
+/// - `node.exe`（或 unix `node`）存在
+/// - `node_modules/npm/bin/npm-cli.js` 存在（完整发行版，用于跑 `npm install`）
+///
+/// 已有实现且版本满足目标 OpenClaw 的 engines.node 时直接复用；
+/// 否则从 npmmirror / nodejs.org 下载 Windows x64 官方 zip 解压。
+/// 成功返回 node.exe 的绝对路径。
+async fn ensure_portable_node_runtime(
+    app: &tauri::AppHandle,
+    target_openclaw_version: &str,
+) -> Result<std::path::PathBuf, String> {
+    use tauri::Emitter;
+    use sha2::{Digest, Sha256};
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
+    let ctx = crate::commands::portable::portable_context()
+        .ok_or("当前不是便携模式，无法使用 U 盘节点运行时")?;
+    let node_root = ctx.root.join("runtimes").join("node");
+    let node_bin_name = if cfg!(windows) { "node.exe" } else { "node" };
+    let node_exe = node_root.join(node_bin_name);
+    let npm_cli = node_root.join("node_modules").join("npm").join("bin").join("npm-cli.js");
+
+    // 目标 OpenClaw 的 node 版本要求（优先 npm 包 engines.node，兜底 fallback 表）
+    let requirement = fallback_openclaw_node_requirement(target_openclaw_version)
+        .unwrap_or(">=18")
+        .to_string();
+
+    // 1. 复用已有运行时（node + npm 齐备且版本满足）
+    if node_exe.is_file() && npm_cli.is_file() {
+        if let Some(ver) = node_version_from_bin(&node_exe) {
+            if node_version_satisfies_requirement(&ver, &requirement) {
+                let _ = app.emit(
+                    "upgrade-log",
+                    format!("复用 U 盘 Node.js {ver}（满足要求 {requirement}）"),
+                );
+                return Ok(node_exe);
+            }
+            let _ = app.emit(
+                "upgrade-log",
+                format!("U 盘 Node.js {ver} 不满足要求 {requirement}，重新下载..."),
+            );
+        }
+    }
+
+    // 2. 确定候选版本与下载源
+    let candidates = node_distribution_for(&requirement);
+    let prefer_mirror = get_configured_registry().contains("npmmirror.com")
+        || get_configured_registry().contains("taobao.org");
+    let bases: Vec<(&str, &str)> = if prefer_mirror {
+        vec![
+            ("npmmirror", "https://npmmirror.com/mirrors/node"),
+            ("nodejs.org", "https://nodejs.org/dist"),
+        ]
+    } else {
+        vec![
+            ("nodejs.org", "https://nodejs.org/dist"),
+            ("npmmirror", "https://npmmirror.com/mirrors/node"),
+        ]
+    };
+
+    std::fs::create_dir_all(&node_root).map_err(|e| format!("创建 node 运行时目录失败: {e}"))?;
+
+    // 逐候选版本尝试：下载 + 校验 + 解压 + 版本确认
+    let mut last_err: Option<String> = None;
+    'candidate: for ver in candidates {
+        for (src_name, base) in &bases {
+            // 下载到系统 temp，避免占用 U 盘空间；最终产物解压到 node_root
+            let upload = if cfg!(windows) {
+                format!("node-v{ver}-win-x64.zip")
+            } else {
+                format!("node-v{ver}-linux-x64.tar.xz")
+            };
+            let download_url = format!("{base}/v{ver}/{upload}");
+            let archive_path = std::env::temp_dir().join(&upload);
+            let _ = app.emit(
+                "upgrade-log",
+                format!("⬇️ 下载 Node.js v{ver}（{src_name}）..."),
+            );
+
+            let client =
+                crate::commands::build_http_client(std::time::Duration::from_secs(600), None)
+                    .map_err(|e| format!("下载客户端创建失败: {e}"))?;
+            let dl_resp = match client.get(&download_url).send().await {
+                Ok(resp) if resp.status().is_success() => resp,
+                Ok(resp) => {
+                    last_err = Some(format!(
+                        "Node.js 下载失败 (HTTP {}): {download_url}",
+                        resp.status()
+                    ));
+                    continue;
+                }
+                Err(e) => {
+                    last_err = Some(format!("Node.js 下载失败: {e}"));
+                    continue;
+                }
+            };
+            let total_bytes = dl_resp.content_length().unwrap_or(0);
+            let size_mb = if total_bytes > 0 {
+                format!("{:.0}MB", total_bytes as f64 / 1_048_576.0)
+            } else {
+                "未知大小".into()
+            };
+            let _ = app.emit("upgrade-log", format!("下载中 ({size_mb})..."));
+
+            // 流式下载 + sha256
+            let actual_sha = {
+                let mut file = tokio::fs::File::create(&archive_path)
+                    .await
+                    .map_err(|e| format!("创建临时文件失败: {e}"))?;
+                let mut stream = dl_resp.bytes_stream();
+                let mut hasher = Sha256::new();
+                let mut downloaded: u64 = 0;
+                let mut last_progress: u32 = 15;
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk.map_err(|e| format!("下载中断: {e}"))?;
+                    file.write_all(&chunk).await.map_err(|e| format!("写入失败: {e}"))?;
+                    hasher.update(&chunk);
+                    downloaded += chunk.len() as u64;
+                    if total_bytes > 0 {
+                        let pct = 15 + ((downloaded as f64 / total_bytes as f64) * 55.0) as u32;
+                        if pct > last_progress {
+                            if pct / 5 > last_progress / 5 {
+                                let dl_mb = downloaded as f64 / 1_048_576.0;
+                                let total_mb = total_bytes as f64 / 1_048_576.0;
+                                let real = (downloaded as f64 / total_bytes as f64 * 100.0) as u32;
+                                let _ = app.emit(
+                                    "upgrade-log",
+                                    format!("下载中 {real}% ({dl_mb:.0}/{total_mb:.0}MB)"),
+                                );
+                            }
+                            last_progress = pct;
+                            let _ = app.emit("upgrade-progress", pct.min(70));
+                        }
+                    }
+                }
+                file.flush().await.map_err(|e| format!("刷新文件失败: {e}"))?;
+                format!("{:x}", hasher.finalize())
+            };
+
+            // 校验（.sha256 文件；zip 源有，npmmirror 也有）
+            let checksum_url = format!("{download_url}.sha256");
+            let expected_sha = match client.get(&checksum_url).send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    let text = resp.text().await.unwrap_or_default();
+                    text.split_whitespace()
+                        .find(|value| value.len() == 64 && value.chars().all(|ch| ch.is_ascii_hexdigit()))
+                        .map(str::to_ascii_lowercase)
+                }
+                _ => None,
+            };
+            if let Some(expected) = &expected_sha {
+                if actual_sha != *expected {
+                    last_err = Some(format!("Node.js SHA-256 校验失败：expected={expected}, actual={actual_sha}"));
+                    let _ = std::fs::remove_file(&archive_path);
+                    continue;
+                }
+            }
+            let _ = app.emit("upgrade-log", "SHA-256 校验通过，解压中...");
+
+            // 解压到 staging 后提升嵌套目录，再原子替换已有 runtimes/node
+            let staging = node_root.with_extension(format!("staging-{}", std::process::id()));
+            if staging.exists() {
+                std::fs::remove_dir_all(&staging).map_err(|e| format!("清理 node staging 失败: {e}"))?;
+            }
+            std::fs::create_dir_all(&staging).map_err(|e| format!("创建 node staging 失败: {e}"))?;
+
+            #[cfg(target_os = "windows")]
+            {
+                let archive_file = std::fs::File::open(&archive_path)
+                    .map_err(|e| format!("打开 node 归档失败: {e}"))?;
+                let mut zip_archive = zip::ZipArchive::new(archive_file)
+                    .map_err(|e| format!("node ZIP 解析失败: {e}"))?;
+                zip_archive.extract(&staging).map_err(|e| format!("node ZIP 解压失败: {e}"))?;
+                // node-v24.x-win-x64/ 嵌套一层 → 提升
+                promote_nested_dir_containing(&staging, node_bin_name)?;
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let status = Command::new("tar")
+                    .args([
+                        "-xJf",
+                        &archive_path.to_string_lossy(),
+                        "-C",
+                        &staging.to_string_lossy(),
+                        "--strip-components=1",
+                    ])
+                    .status()
+                    .map_err(|e| format!("node 解压失败: {e}"))?;
+                if !status.success() {
+                    last_err = Some("node tar.xz 解压失败".into());
+                    let _ = std::fs::remove_file(&archive_path);
+                    continue;
+                }
+            }
+            let _ = std::fs::remove_file(&archive_path);
+
+            // 校验解压结果：node + npm 齐备且版本满足
+            let staged_exe = staging.join(node_bin_name);
+            if !(staged_exe.is_file()
+                && staging.join("node_modules").join("npm").join("bin").join("npm-cli.js").is_file())
+            {
+                last_err = Some("node 解压产物不完整（缺 node 可执行文件或 npm-cli.js）".into());
+                let _ = std::fs::remove_dir_all(&staging);
+                continue;
+            }
+            let staged_ver = node_version_from_bin(&staged_exe)
+                .ok_or_else(|| "无法读取解压后 node 版本".to_string())?;
+            if !node_version_satisfies_requirement(&staged_ver, &requirement) {
+                last_err = Some(format!("Node.js {staged_ver} 不满足要求 {requirement}"));
+                let _ = std::fs::remove_dir_all(&staging);
+                continue;
+            }
+
+            // 原子切换：旧 runtimes/node → backup（删除残留），staging → node_root
+            let backup = node_root.with_extension(format!("backup-{}", std::process::id()));
+            if backup.exists() {
+                std::fs::remove_dir_all(&backup).map_err(|e| format!("清理 node backup 失败: {e}"))?;
+            }
+            if node_root.exists() {
+                std::fs::rename(&node_root, &backup)
+                    .map_err(|e| format!("备份旧 node 运行时失败: {e}"))?;
+            }
+            if let Err(e) = std::fs::rename(&staging, &node_root) {
+                if backup.exists() && !node_root.exists() {
+                    let _ = std::fs::rename(&backup, &node_root);
+                }
+                return Err(format!("激活新 node 运行时失败: {e}"));
+            }
+            if backup.exists() {
+                let _ = std::fs::remove_dir_all(&backup);
+            }
+
+            let _ = app.emit(
+                "upgrade-log",
+                format!("✅ Node.js {staged_ver} 已安装到 U 盘 {}", node_root.display()),
+            );
+            return Ok(node_exe);
+        }
+    }
+
+    Err(last_err.unwrap_or_else(|| "无法获取兼容的 Node.js 运行时".into()))
+}
+
+/// 便携模式：用 U 盘内 node 运行时把 OpenClaw npm 包安装到 U 盘 engines/openclaw。
+///
+/// 采用 `npm install -g <pkg> --prefix <dir>`（方式 B）而非纯 `--prefix`：
+/// 两者的产物差异在于方式 B 会把 openclaw.cmd shim 直接放在 prefix 根，
+/// 与 standalone/portable 现有布局完全同构，所有检测/版本/来源/校验 helper 都能命中。
+///
+/// 全程不写宿主：npm_config_prefix 指向 U 盘 staging；复用系统 npm 缓存（跨次命中）；
+/// 用 U 盘 node.exe 直接跑其自带 npm-cli.js，不经宿主 npm。
+/// 成功返回安装后的版本号。
+async fn try_portable_npm_install(
+    app: &tauri::AppHandle,
+    source: &str,
+    ver: &str,
+    current_source: &str,
+) -> Result<String, String> {
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+    use tauri::Emitter;
+
+    let ctx = crate::commands::portable::portable_context()
+        .ok_or("当前不是便携模式，无法执行 U 盘 npm 安装")?;
+    let install_dir = ctx.engines_openclaw_dir.clone();
+
+    // 1. 解析具体版本（latest → 查 registry dist-tags.latest）
+    let pkg_name = npm_package_name(source);
+    let registry = if pkg_name.contains("openclaw-zh") {
+        // 汉化版：淘宝源或官方源（与宿主 npm 块一致）
+        let configured = get_configured_registry();
+        if configured.contains("npmmirror.com") || configured.contains("taobao.org") {
+            configured
+        } else {
+            "https://registry.npmjs.org".to_string()
+        }
+    } else {
+        get_configured_registry()
+    };
+    let resolved_ver = if ver == "latest" {
+        let client =
+            crate::commands::build_http_client(std::time::Duration::from_secs(15), None)
+                .map_err(|e| format!("HTTP 初始化失败: {e}"))?;
+        let encoded = pkg_name.replace('/', "%2F");
+        let url = format!("{registry}/{encoded}");
+        let resp = client
+            .get(&url)
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .map_err(|e| format!("查询最新版本失败: {e}"))?;
+        let json: Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("解析 registry 响应失败: {e}"))?;
+        json.get("dist-tags")
+            .and_then(|t| t.get("latest"))
+            .and_then(Value::as_str)
+            .ok_or("registry 无 dist-tags.latest 字段")?
+            .to_string()
+    } else {
+        ver.to_string()
+    };
+
+    // 2. 保障 U 盘 node 运行时（下载到 runtimes/node）
+    let node_exe = ensure_portable_node_runtime(app, &resolved_ver).await?;
+    let node_root = node_exe
+        .parent()
+        .ok_or("无法确定 node 运行时目录")?;
+    let npm_cli = node_root
+        .join("node_modules")
+        .join("npm")
+        .join("bin")
+        .join("npm-cli.js");
+    if !npm_cli.is_file() {
+        return Err("U 盘 node 运行时缺少 npm-cli.js，无法执行 npm 安装".into());
+    }
+
+    let _ = app.emit(
+        "upgrade-log",
+        format!(
+            "📦 便携 npm 安装: {pkg_name}@{resolved_ver} → {}",
+            install_dir.display()
+        ),
+    );
+    let _ = app.emit("upgrade-progress", 10);
+
+    // 3. staging 目录准备（复用 standalone_work_dir，保证与 install_dir 同盘可原子切换）
+    let staging_dir = standalone_work_dir(&install_dir, "staging");
+    let backup_dir = standalone_work_dir(&install_dir, "backup");
+    if !install_dir.exists() && backup_dir.exists() {
+        std::fs::rename(&backup_dir, &install_dir)
+            .map_err(|e| format!("恢复上次升级备份失败: {e}"))?;
+    }
+    if staging_dir.exists() {
+        std::fs::remove_dir_all(&staging_dir).map_err(|e| format!("清理 staging 目录失败: {e}"))?;
+    }
+    if backup_dir.exists() {
+        std::fs::remove_dir_all(&backup_dir).map_err(|e| format!("清理旧升级备份失败: {e}"))?;
+    }
+    std::fs::create_dir_all(&staging_dir).map_err(|e| format!("创建 staging 目录失败: {e}"))?;
+
+    // 4. 执行 npm install -g --prefix（用 U 盘 node + npm-cli.js）
+    //    镜像源失败时自动切换到官方源重试一次。
+    let run_install = |app: &tauri::AppHandle, target_registry: &str| -> Result<(), String> {
+        let _ = app.emit(
+            "upgrade-log",
+            format!(
+                "$ {node} {npm_cli} install -g {pkg_name}@{resolved_ver} --prefix {} --force --registry {target_registry}",
+                staging_dir.display()
+            ),
+        );
+        let mut install_cmd = Command::new(&node_exe);
+        install_cmd.arg(&npm_cli);
+        install_cmd.args([
+            "install",
+            "-g",
+            &format!("{pkg_name}@{resolved_ver}"),
+            "--prefix",
+            &staging_dir.to_string_lossy(),
+            "--force",
+            "--no-audit",
+            "--no-fund",
+            "--registry",
+            target_registry,
+        ]);
+        install_cmd
+            .env("PATH", super::enhanced_path())
+            .env("npm_config_prefix", &staging_dir)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        crate::commands::apply_proxy_env(&mut install_cmd);
+        apply_git_install_env(&mut install_cmd);
+        #[cfg(target_os = "windows")]
+        install_cmd.creation_flags(0x08000000);
+
+        let mut child = install_cmd
+            .spawn()
+            .map_err(|e| format!("启动 npm 安装失败: {e}"))?;
+        let stderr = child.stderr.take();
+        let stdout = child.stdout.take();
+
+        // stderr 逐行 emit 进度并收集（供失败诊断）
+        let app2 = app.clone();
+        let stderr_lines = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let stderr_lines2 = stderr_lines.clone();
+        let handle = std::thread::spawn(move || {
+            let mut progress: u32 = 15;
+            if let Some(pipe) = stderr {
+                for line in BufReader::new(pipe).lines().map_while(Result::ok) {
+                    let _ = app2.emit("upgrade-log", &line);
+                    stderr_lines2.lock().unwrap().push(line);
+                    if progress < 75 {
+                        progress += 2;
+                        let _ = app2.emit("upgrade-progress", progress);
+                    }
+                }
+            }
+        });
+        if let Some(pipe) = stdout {
+            for line in BufReader::new(pipe).lines().map_while(Result::ok) {
+                let _ = app.emit("upgrade-log", &line);
+            }
+        }
+        let _ = handle.join();
+        let _ = app.emit("upgrade-progress", 80);
+        let status = child.wait().map_err(|e| format!("等待 npm 安装失败: {e}"))?;
+
+        if !status.success() {
+            let code = status
+                .code()
+                .map(|c| c.to_string())
+                .unwrap_or("unknown".into());
+            let tail = stderr_lines
+                .lock()
+                .unwrap()
+                .iter()
+                .rev()
+                .take(15)
+                .rev()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Err(format!(
+                "便携 npm 安装失败 (exit code: {code})\n{tail}"
+            ));
+        }
+        let _ = app.emit("upgrade-progress", 85);
+        Ok(())
+    };
+
+    let used_mirror = registry.contains("npmmirror.com") || registry.contains("taobao.org");
+    match run_install(app, &registry) {
+        Ok(()) => {}
+        Err(mirror_err) => {
+            if used_mirror {
+                let _ = app.emit("upgrade-log", "");
+                let _ = app.emit("upgrade-log", "⚠️ 镜像源安装失败，自动切换到官方源重试...");
+                let _ = app.emit("upgrade-progress", 15);
+                run_install(app, "https://registry.npmjs.org")
+                    .map_err(|official_err| format!("镜像源和官方源均失败。\n镜像源: {mirror_err}\n官方源: {official_err}"))?;
+            } else {
+                return Err(mirror_err);
+            }
+        }
+    }
+
+    // 5. 复制 node.exe 到 staging 根（使 shim %dp0%\node.exe 自包含）
+    let extra_bin = staging_dir.join(if cfg!(windows) { "node.exe" } else { "node" });
+    if node_exe.is_file() {
+        match std::fs::copy(&node_exe, &extra_bin) {
+            Ok(_) => {}
+            Err(e) => {
+                let _ = app.emit(
+                    "upgrade-log",
+                    format!("⚠️ 复制 node.exe 到引擎目录失败（将改走 PATH 解析）: {e}"),
+                );
+            }
+        }
+    }
+
+    // 6. 校验 staging
+    #[cfg(target_os = "windows")]
+    let cli_bin = staging_dir.join("openclaw.cmd");
+    #[cfg(not(target_os = "windows"))]
+    let cli_bin = staging_dir.join("openclaw");
+    if !cli_bin.exists() {
+        let _ = std::fs::remove_dir_all(&staging_dir);
+        return Err("npm 安装后未找到 openclaw CLI，安装不完整".into());
+    }
+    let installed_ver = read_version_from_installation(&cli_bin)
+        .ok_or_else(|| "无法读取安装后的 CLI 版本".to_string())?;
+    if !versions_match(&installed_ver, &resolved_ver) {
+        let _ = std::fs::remove_dir_all(&staging_dir);
+        return Err(format!(
+            "便携 npm 安装校验失败：目标版本 {resolved_ver}，实际 {installed_ver}"
+        ));
+    }
+    // 原生模块冒烟：用 U 盘 node 强载 CLI --version，捕获 NODE_MODULE_VERSION 不匹配
+    if let Some(pkg_json) = find_openclaw_package_json(&cli_bin) {
+        if let Some(pkg_dir) = pkg_json.parent() {
+            #[cfg(target_os = "windows")]
+            let mjs = pkg_dir.join("bin").join("openclaw.mjs");
+            #[cfg(not(target_os = "windows"))]
+            let mjs = pkg_dir.join("bin").join("openclaw.mjs");
+            if mjs.is_file() {
+                let mut smoke = Command::new(&node_exe);
+                smoke.arg(&mjs).arg("--version").env("PATH", super::enhanced_path());
+                #[cfg(target_os = "windows")]
+                smoke.creation_flags(0x08000000);
+                match smoke.output() {
+                    Ok(o) if o.status.success() => {
+                        let _ = app.emit("upgrade-log", "✅ CLI 冒烟通过（原生模块可加载）");
+                    }
+                    Ok(o) => {
+                        let err = String::from_utf8_lossy(&o.stderr).trim().to_string();
+                        let _ = std::fs::remove_dir_all(&staging_dir);
+                        return Err(format!(
+                            "安装的 CLI 无法运行（原生模块或 Node 版本不匹配）：{err}\n请重试升级，或将 node 运行时调整为兼容版本后再次安装。"
+                        ));
+                    }
+                    Err(e) => {
+                        let _ = app.emit(
+                            "upgrade-log",
+                            format!("⚠️ CLI 冒烟跳过（执行失败）: {e}"),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    verify_installed_openclaw_runtime_dependencies(&cli_bin)?;
+
+    // 7. 原子切换 + 绑定
+    replace_standalone_install(&staging_dir, &install_dir, &backup_dir)?;
+    let install_cli_bin = install_dir.join(if cfg!(windows) { "openclaw.cmd" } else { "openclaw" });
+    bind_openclaw_cli_path(&install_cli_bin)?;
+    super::refresh_enhanced_path();
+    crate::commands::service::invalidate_cli_detection_cache();
+
+    let _ = app.emit("upgrade-progress", 100);
+    let _ = app.emit(
+        "upgrade-log",
+        format!("✅ 便携 npm 安装完成，当前版本: {installed_ver}"),
+    );
+    let _ = app.emit(
+        "upgrade-log",
+        format!("安装目录: {}", install_dir.display()),
+    );
+    if current_source == source {
+        let _ = app.emit(
+            "upgrade-log",
+            "升级已原子切换；如安装失败会自动恢复原版本。",
+        );
+    } else {
+        let _ = app.emit(
+            "upgrade-log",
+            format!(
+                "已从 {current_source} 切换到 {source} 安装方式，旧安装未自动删除。"
+            ),
+        );
+    }
+    Ok(installed_ver)
 }
 
 fn verify_standalone_install(
@@ -4826,6 +5451,7 @@ async fn upgrade_openclaw_inner(
                             return Ok(msg);
                         }
                         Err(gh_reason) => {
+                            // 非便携模式：按既有规则决定是否降级到宿主 npm -g
                             if should_fallback_standalone_to_npm(
                                 current_install_mode,
                                 &method,
@@ -4836,6 +5462,26 @@ async fn upgrade_openclaw_inner(
                                     format!("standalone 不可用（GitHub: {gh_reason}），降级到 npm 安装..."),
                                 );
                                 let _ = app.emit("upgrade-progress", 5);
+                            } else if should_fallback_standalone_to_portable_npm(portable_mode, &method)
+                            {
+                                // 便携模式：standalone 不可用（版本滞后/404/网络）→ 转 U 盘内 npm 安装
+                                let _ = app.emit(
+                                    "upgrade-log",
+                                    format!("standalone 不可用（CDN: {cdn_reason}，GitHub: {gh_reason}），改用 U 盘内 npm 安装..."),
+                                );
+                                let _ = app.emit("upgrade-progress", 5);
+                                return try_portable_npm_install(
+                                    &app,
+                                    &source,
+                                    &standalone_ver,
+                                    &current_source,
+                                )
+                                .await
+                                .map_err(|npm_reason| {
+                                    format!(
+                                        "standalone 安装失败: CDN={cdn_reason}, GitHub={gh_reason}；随后便携 npm 安装也失败: {npm_reason}"
+                                    )
+                                });
                             } else if method == "auto" && portable_mode {
                                 return Err(format!(
                                     "当前处于便携模式，已阻止自动降级到 npm 全局安装（npm -g 会写入本机而非 U 盘）。请检查网络后重试独立包安装。standalone 安装失败: CDN={cdn_reason}, GitHub={gh_reason}"
@@ -4857,6 +5503,16 @@ async fn upgrade_openclaw_inner(
     }
 
     // ── npm install（兜底或用户明确选择） ──
+
+    // 便携模式：不依赖宿主 Node.js（U 盘内自带运行时），且 npm 安装要落到 U 盘 →
+    // 直接走 U 盘内 npm 安装链路，绝不执行宿主 npm -g。
+    if portable_mode {
+        let _ = app.emit(
+            "upgrade-log",
+            "便携模式：改用 U 盘内 node + npm 安装（不写宿主机）...",
+        );
+        return try_portable_npm_install(&app, &source, &ver, &current_source).await;
+    }
 
     ensure_target_node_runtime_compatible_for_npm(ver)?;
 
@@ -8419,6 +9075,7 @@ mod write_openclaw_config_merge_tests {
     use super::resolve_openclaw_cli_input_path;
     use super::select_calibration_source;
     use super::should_fallback_standalone_to_npm;
+    use super::should_fallback_standalone_to_portable_npm;
     use super::standalone_bundled_node_bin;
     use super::standalone_install_dir_impl;
     use super::standalone_install_version;
@@ -8954,6 +9611,21 @@ mod write_openclaw_config_merge_tests {
     }
 
     #[test]
+    fn node_distribution_maps_requirements_to_candidate_versions() {
+        assert_eq!(
+            node_distribution_for(">=24.16.0 <25 || >=26.1.0"),
+            ["26.1.0", "24.16.0"]
+        );
+        assert_eq!(
+            node_distribution_for(">=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0"),
+            ["24.16.0", "22.22.3"]
+        );
+        assert_eq!(node_distribution_for(">=22.19.0"), ["22.22.3"]);
+        assert_eq!(node_distribution_for(">=18"), ["22.22.3"]);
+        assert_eq!(node_distribution_for("unknown-range"), ["22.22.3"]);
+    }
+
+    #[test]
     fn openclaw_2026_7_1_node_range_rejects_unsupported_gaps() {
         let requirement = ">=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0";
         assert!(!node_version_satisfies_requirement("v22.22.2", requirement));
@@ -9047,6 +9719,20 @@ mod write_openclaw_config_merge_tests {
             "standalone-r2",
             false
         ));
+    }
+
+    #[test]
+    fn portable_fallback_enabled_for_auto_npm_portable_npm_methods() {
+        // 便携模式：auto / npm / portable-npm 均允许转投 U 盘内 npm 安装
+        assert!(should_fallback_standalone_to_portable_npm(true, "auto"));
+        assert!(should_fallback_standalone_to_portable_npm(true, "npm"));
+        assert!(should_fallback_standalone_to_portable_npm(true, "portable-npm"));
+        // 便携模式：显式 standalone 方式不转
+        assert!(!should_fallback_standalone_to_portable_npm(true, "standalone-r2"));
+        assert!(!should_fallback_standalone_to_portable_npm(true, "standalone-github"));
+        // 非便携模式：一律不触发便携 npm 链路
+        assert!(!should_fallback_standalone_to_portable_npm(false, "auto"));
+        assert!(!should_fallback_standalone_to_portable_npm(false, "npm"));
     }
 
     #[test]

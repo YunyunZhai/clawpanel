@@ -276,6 +276,22 @@ fn current_portable_node_dir(ctx: &PortableContext) -> Option<PathBuf> {
         })
 }
 
+/// 运行期动态解析 U 盘 node 运行时目录。
+///
+/// 与 `ctx.node_dir`（启动期冻结）不同，此函数每次调用都重新检测
+/// `runtimes/node/{node}` 是否存在，保证升级流程中途把 node 下载进 U 盘后，
+/// `build_enhanced_path()` 能立即感知，无需重启应用。
+pub(crate) fn dynamic_node_dir() -> Option<PathBuf> {
+    let ctx = portable_context()?;
+    dynamic_node_dir_for(ctx)
+}
+
+/// 实际探测逻辑（拆出以便单测，避开进程级 OnceLock）
+fn dynamic_node_dir_for(ctx: &PortableContext) -> Option<PathBuf> {
+    let root = ctx.root.join("runtimes").join("node");
+    root.join(node_bin_name()).is_file().then_some(root)
+}
+
 fn clean_status_path(path: &Path) -> String {
     let cleaned: PathBuf = path
         .components()
@@ -1296,6 +1312,28 @@ mod tests {
             Some(hermes_bin.join("hermes.cmd").as_path())
         );
         assert!(ctx.warnings.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dynamic_node_dir_only_detects_existing_runtime() {
+        let root = temp_root("dyn-node");
+        let node_root = root.join("runtimes").join("node");
+        let manifest: Value = serde_json::from_str(r#"{ "mode": "portable" }"#).unwrap();
+        let ctx = resolve_portable_paths(&manifest, &root).unwrap();
+
+        // runtimes/node 不存在 → None
+        assert!(dynamic_node_dir_for(&ctx).is_none());
+
+        // 目录存在但缺 node 可执行文件 → None
+        std::fs::create_dir_all(&node_root).unwrap();
+        assert!(dynamic_node_dir_for(&ctx).is_none());
+
+        // 放入 node 可执行文件 → Some(node_root)
+        let node_bin = if cfg!(windows) { "node.exe" } else { "node" };
+        std::fs::write(node_root.join(node_bin), b"").unwrap();
+        assert_eq!(dynamic_node_dir_for(&ctx).as_deref(), Some(node_root.as_path()));
+
         let _ = std::fs::remove_dir_all(&root);
     }
 

@@ -490,8 +490,9 @@ fn build_enhanced_path() -> String {
         read_panel_config_value().and_then(|v| v.get("nodePath")?.as_str().map(String::from));
 
     // 便携模式：U 盘 Node 运行时优先级最高（排在自定义 nodePath 之前）
-    let portable_node_dir = portable::portable_context()
-        .and_then(|ctx| ctx.node_dir.as_ref())
+    // 动态重查 runtimes/node，保证升级流程中途下载的 node 立即生效
+    // （ctx.node_dir 是启动期冻结值，运行期装了 node 后不会自动刷新）
+    let portable_node_dir = portable::dynamic_node_dir()
         .map(|p| p.to_string_lossy().to_string());
 
     #[cfg(target_os = "macos")]

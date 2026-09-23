@@ -2590,6 +2590,8 @@
     "methodStandaloneR2": "Standalone Package · CDN (Recommended for China, includes Node.js, no npm needed)",
     "methodStandaloneGithub": "Standalone Package · GitHub (Fallback when CDN unavailable)",
     "methodNpm": "npm Install (Traditional, requires Node.js + npm + network)",
+    "methodPortableNpm": "Portable npm (Install to USB)",
+    "methodHintPortableNpm": "All on USB: auto-downloads Node.js, runs npm install inside USB engines dir.",
     "registryLabel": "npm Registry",
     "registryTaobao": "Taobao Mirror (Recommended for China)",
     "registryNpm": "npm Official",

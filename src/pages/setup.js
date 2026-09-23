@@ -166,6 +166,15 @@ export async function render() {
       </span>
       ${warnings.length ? `<div style="margin-top:4px;font-size:12px;color:var(--warning)">${warnings.map(escapeHtml).join('<br>')}</div>` : ''}
     `
+    // 便携模式：在升级方式下拉中追加「便携 npm（安装到 U盘）」选项
+    const methodSelect = page.querySelector('#install-method')
+    if (methodSelect && !methodSelect.querySelector('option[value="portable-npm"]')) {
+      const opt = document.createElement('option')
+      opt.value = 'portable-npm'
+      opt.textContent = t('setup.methodPortableNpm')
+      methodSelect.appendChild(opt)
+      METHOD_HINTS['portable-npm'] = t('setup.methodHintPortableNpm')
+    }
   }).catch(() => {})
 
   // #Compat-4: 用户在浏览器里手动装完 Node.js 后切回 panel，或用户装完 Git/OpenClaw

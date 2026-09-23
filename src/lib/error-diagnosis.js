@@ -144,10 +144,14 @@ export function diagnoseInstallError(errStr) {
 
   // Node.js 版本过低
   if (s.includes('engine') || s.includes('unsupported') || s.includes('required:')) {
+    // 便携模式提示（与普通模式不同：node 运行时在 U 盘内）
+    const isPortable = s.includes('便携') || s.includes('U 盘') || s.includes('portable')
     return {
       title: '安装失败 — Node.js 版本不兼容',
-      hint: '当前 Node.js 版本过低，OpenClaw 需要 Node.js 18 或更高版本。\n请升级 Node.js：',
-      command: '下载最新版: https://nodejs.org/',
+      hint: isPortable
+        ? 'U 盘内的 Node.js 运行时版本与目标 OpenClaw 不兼容。请重新升级，系统会自动下载兼容版本到 U 盘 runtimes/node。'
+        : '当前 Node.js 版本过低，OpenClaw 需要 Node.js 18 或更高版本。\n请升级 Node.js：',
+      command: isPortable ? null : '下载最新版: https://nodejs.org/',
     }
   }
 
