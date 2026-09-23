@@ -4312,8 +4312,13 @@ async fn try_portable_npm_install(
         let _ = app.emit(
             "upgrade-log",
             format!(
-                "$ {node} {npm_cli} install -g {pkg_name}@{resolved_ver} --prefix {} --force --registry {target_registry}",
-                staging_dir.display()
+                "$ {} {} install -g {}@{} --prefix {} --force --registry {}",
+                node_exe.display(),
+                npm_cli.display(),
+                pkg_name,
+                resolved_ver,
+                staging_dir.display(),
+                target_registry,
             ),
         );
         let mut install_cmd = Command::new(&node_exe);
@@ -9066,6 +9071,7 @@ mod write_openclaw_config_merge_tests {
     use super::fallback_openclaw_node_requirement;
     use super::merge_configs_preserving_fields;
     use super::node_version_satisfies_requirement;
+    use super::node_distribution_for;
     use super::normalize_model_api_type;
     use super::path_without_curdir_string;
     use super::promote_nested_standalone_dir;
