@@ -5288,42 +5288,51 @@ async fn upgrade_openclaw_inner(
     );
 
     // 切换源后重装 Gateway 服务
+    // 便携模式跳过：不重装/不停止本机 Gateway 服务，避免在宿主机留下服务痕迹
     if need_uninstall_old {
-        let _ = app.emit("upgrade-log", "正在重装 Gateway 服务（更新启动路径）...");
+        let portable_mode = crate::commands::portable::portable_context().is_some();
+        if portable_mode {
+            let _ = app.emit(
+                "upgrade-log",
+                "便携模式：跳过重装 Gateway 服务（U 盘便携版不安装本机服务）",
+            );
+        } else {
+            let _ = app.emit("upgrade-log", "正在重装 Gateway 服务（更新启动路径）...");
 
-        // 刷新 PATH 缓存和 CLI 检测缓存，确保找到新安装的二进制
-        super::refresh_enhanced_path();
-        crate::commands::service::invalidate_cli_detection_cache();
+            // 刷新 PATH 缓存和 CLI 检测缓存，确保找到新安装的二进制
+            super::refresh_enhanced_path();
+            crate::commands::service::invalidate_cli_detection_cache();
 
-        // 先停掉旧的
-        #[cfg(target_os = "macos")]
-        {
-            let uid = get_uid().unwrap_or(501);
-            let _ = Command::new("launchctl")
-                .args(["bootout", &format!("gui/{uid}/ai.openclaw.gateway")])
-                .output();
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = openclaw_command().args(["gateway", "stop"]).output();
-        }
-        // 等待旧 Gateway 进程退出
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        // 重新安装（刷新后的 PATH 会找到新二进制）
-        use crate::utils::openclaw_command_async;
-        let gw_out = openclaw_command_async()
-            .args(["gateway", "install"])
-            .output()
-            .await;
-        match gw_out {
-            Ok(o) if o.status.success() => {
-                let _ = app.emit("upgrade-log", "Gateway 服务已重装");
+            // 先停掉旧的
+            #[cfg(target_os = "macos")]
+            {
+                let uid = get_uid().unwrap_or(501);
+                let _ = Command::new("launchctl")
+                    .args(["bootout", &format!("gui/{uid}/ai.openclaw.gateway")])
+                    .output();
             }
-            _ => {
-                let _ = app.emit(
-                    "upgrade-log",
-                    "⚠️ Gateway 重装失败，请手动执行 openclaw gateway install",
-                );
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = openclaw_command().args(["gateway", "stop"]).output();
+            }
+            // 等待旧 Gateway 进程退出
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            // 重新安装（刷新后的 PATH 会找到新二进制）
+            use crate::utils::openclaw_command_async;
+            let gw_out = openclaw_command_async()
+                .args(["gateway", "install"])
+                .output()
+                .await;
+            match gw_out {
+                Ok(o) if o.status.success() => {
+                    let _ = app.emit("upgrade-log", "Gateway 服务已重装");
+                }
+                _ => {
+                    let _ = app.emit(
+                        "upgrade-log",
+                        "⚠️ Gateway 重装失败，请手动执行 openclaw gateway install",
+                    );
+                }
             }
         }
     }
