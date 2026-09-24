@@ -80,7 +80,13 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
             });
         }
         "quit" => {
-            app.exit(0);
+            // 退出前先停止本面板启动的 Gateway（外部启动的不会误关），
+            // stop_service 内部最多等待约 10s 端口释放，随后再退出进程。
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = crate::commands::service::stop_service("ai.openclaw.gateway".into()).await;
+                app.exit(0);
+            });
         }
         _ => {}
     }
