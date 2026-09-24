@@ -36,6 +36,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    watch: {
+      // 排除 Rust 编译产物目录，避免 Windows 上 .dll 被 cargo 锁住导致 EBUSY
+      ignored: ['**/src-tauri/target/**'],
+    },
     proxy: {
       '/ws': {
         target: `ws://127.0.0.1:${gatewayPort}`,
