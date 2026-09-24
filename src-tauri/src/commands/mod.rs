@@ -294,6 +294,14 @@ fn panel_config_path() -> PathBuf {
         .unwrap_or_else(|| default_openclaw_dir().join("clawpanel.json"))
 }
 
+/// 探测 npm 全局 prefix。对外入口：使用 enhanced_path() 让 `npm` 与安装命令
+/// （npm_command_elevated / npm_command）解析到同一个 npm —— 便携模式下两者都命中
+/// U 盘 runtimes/node 的 npm，避免「安装落点 prefix」与「此处探测的 prefix」分裂
+/// 导致校验找不到主包。
+///
+/// 注意：build_enhanced_path() 内部收集 npm 全局目录时必须使用
+/// detect_npm_global_prefix_with_path()，否则 enhanced_path() 构建时
+/// 会再触发 windows_npm_global_prefix() → enhanced_path() 无限递归导致栈溢出。
 #[cfg(target_os = "windows")]
 pub(crate) fn windows_npm_global_prefix() -> Option<String> {
     if let Ok(prefix) = std::env::var("NPM_CONFIG_PREFIX") {
@@ -302,15 +310,17 @@ pub(crate) fn windows_npm_global_prefix() -> Option<String> {
             return Some(trimmed.to_string());
         }
     }
+    detect_npm_global_prefix_with_path(&enhanced_path())
+}
 
+/// 用指定 PATH 探测 npm 全局 prefix（纯探测，不触碰 enhanced_path，避免递归）。
+#[cfg(target_os = "windows")]
+fn detect_npm_global_prefix_with_path(path: &str) -> Option<String> {
     const CREATE_NO_WINDOW: u32 = 0x08000000;
-    // 使用 enhanced_path 让 `npm` 与安装命令（npm_command_elevated / npm_command）
-    // 解析到同一个 npm —— 便携模式下两者都命中 U 盘 runtimes/node 的 npm，
-    // 避免「安装落点 prefix」与「此处探测的 prefix」分裂导致校验找不到主包。
     let mut cmd = Command::new("cmd");
     cmd.args(["/d", "/s", "/c", "npm config get prefix"]);
     cmd.creation_flags(CREATE_NO_WINDOW);
-    cmd.env("PATH", enhanced_path());
+    cmd.env("PATH", path);
     if let Ok(output) = cmd.output() {
         if output.status.success() {
             let prefix = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -857,7 +867,11 @@ fn build_enhanced_path() -> String {
         if !appdata.is_empty() {
             extra.push(format!(r"{}\npm", appdata));
         }
-        if let Some(prefix) = windows_npm_global_prefix() {
+        // 这里必须用 detect_npm_global_prefix_with_path(系统 PATH) 而非 windows_npm_global_prefix()：
+        // 后者会调 enhanced_path()，而本函数正处在 enhanced_path() 的构建过程中，
+        // 会形成 无限递归 → 栈溢出。此时 enhanced_path 尚未生成，用系统 PATH 探测、
+        // 再把它收集进 enhanced_path 即可，语义与 6dae995 的校验一致不冲突。
+        if let Some(prefix) = detect_npm_global_prefix_with_path(&current) {
             let prefix_path = std::path::Path::new(&prefix);
             if prefix_path.is_dir() {
                 let prefix_str = prefix_path.to_string_lossy().to_string();
