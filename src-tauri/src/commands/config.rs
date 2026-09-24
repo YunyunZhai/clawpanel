@@ -3092,7 +3092,7 @@ fn should_fallback_standalone_to_npm(
 
 fn standalone_install_version(
     requested_version: Option<&str>,
-    recommended_version: Option<&str>,
+    _recommended_version: Option<&str>,
     _method: &str,
     _portable_mode: bool,
 ) -> String {
@@ -3100,7 +3100,11 @@ fn standalone_install_version(
         return version.to_string();
     }
 
-    recommended_version.unwrap_or("latest").to_string()
+    // standalone 独立包与 npm 包是两套独立发布产物，版本号流不同
+    // （standalone 如 2026.7.1-zh.2，npm 推荐号如 2026.7.1-2-zh.1）。
+    // 未显式指定版本时跟随 standalone 清单最新版，而不是 npm 推荐号，
+    // 否则清单版本与请求版本不一致会导致安装被拒绝。
+    "latest".to_string()
 }
 
 #[tauri::command]
@@ -4125,9 +4129,13 @@ async fn try_standalone_install(
         };
 
     if version != "latest" && !versions_match(&remote_version, version) {
-        return Err(format!(
-            "standalone 版本 {remote_version} 与请求版本 {version} 不匹配"
-        ));
+        // standalone 独立包与 npm 包是两套版本流（如 standalone 2026.7.1-zh.2 vs
+        // npm 2026.7.1-2-zh.1）。请求版本若与清单不一致（通常来自 npm 推荐号），
+        // 跟随清单版本安装，避免仅因版本号流不同而拒绝。
+        let _ = app.emit(
+            "upgrade-log",
+            format!("⚠️ standalone 清单版本 {remote_version} 与请求版本 {version} 不一致，采用清单版本继续"),
+        );
     }
 
     let default_base = format!("{base_url}/{remote_version}");
@@ -9059,31 +9067,26 @@ mod write_openclaw_config_merge_tests {
     }
 
     #[test]
-    fn standalone_version_uses_recommended_for_portable_without_explicit_version() {
+    fn standalone_version_follows_manifest_without_explicit_version() {
+        // 无显式版本时跟随 standalone 清单（latest），而不是 npm 推荐号，
+        // 因为 standalone 和 npm 是两套独立版本流。
         assert_eq!(
             standalone_install_version(None, Some("2026.5.18-zh.1"), "auto", true),
-            "2026.5.18-zh.1"
+            "latest"
         );
-    }
-
-    #[test]
-    fn standalone_version_uses_recommended_for_explicit_standalone_method() {
         assert_eq!(
             standalone_install_version(None, Some("2026.5.18-zh.1"), "standalone-r2", false),
-            "2026.5.18-zh.1"
+            "latest"
         );
         assert_eq!(
             standalone_install_version(None, Some("2026.5.18-zh.1"), "standalone-github", false),
-            "2026.5.18-zh.1"
+            "latest"
         );
-    }
-
-    #[test]
-    fn standalone_version_keeps_recommended_for_auto_non_portable() {
         assert_eq!(
             standalone_install_version(None, Some("2026.5.18-zh.1"), "auto", false),
-            "2026.5.18-zh.1"
+            "latest"
         );
+        assert_eq!(standalone_install_version(None, None, "auto", false), "latest");
     }
 
     #[test]

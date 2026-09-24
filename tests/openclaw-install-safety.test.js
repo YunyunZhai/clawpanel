@@ -189,3 +189,30 @@ test('Web standalone activation restores the old install when activation fails',
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+// 回归：standalone 独立包与 npm 包是两套独立版本流（如 standalone 2026.7.1-zh.2 vs
+// npm 2026.7.1-2-zh.1）。standalone 安装不得复用 npm 推荐号，否则版本匹配必然失败，
+// 导致便携模式下安装被拒绝（曾导致 UI 汉化版安装失败）。
+test('standalone install does not reuse the npm recommended version and tolerates manifest mismatch', () => {
+  const webUpgrade = sliceFunction(devApi, 'async upgrade_openclaw(', '// 设备配对 + Gateway 握手')
+  // standalone 分支必须使用独立版本变量（未显式指定时为 latest），而非 npm 推荐号
+  assert.match(webUpgrade, /const saVer = version \|\| 'latest'/)
+  assert.doesNotMatch(webUpgrade, /_tryStandaloneInstall\(ver,/)
+
+  // 版本不匹配时跟随清单并继续，而不是抛错拒绝
+  const webInstall = sliceFunction(devApi, 'async function _tryStandaloneInstall(', 'function r2PlatformKey()')
+  assert.doesNotMatch(webInstall, /standalone 版本 \$\{remoteVersion\} 与请求版本 \$\{version\} 不匹配/)
+  assert.match(webInstall, /采用清单版本继续/)
+
+  // GitHub release 路径使用 {version} 占位符，由函数解析后替换（桌面端 Rust 同样适用）
+  assert.match(webUpgrade, /releases\/download\/v\{version\}/)
+
+  // Rust 桌面端：无显式版本时跟随清单 latest，且版本不匹配时同样继续
+  const rustUpgrade = sliceFunction(rustConfig, 'async fn upgrade_openclaw_inner(', '#[tauri::command]\npub async fn uninstall_openclaw')
+  assert.match(rustUpgrade, /standalone_install_version/)
+  const rustVersionHelper = sliceFunction(rustConfig, 'fn standalone_install_version(', 'async fn get_version_info(')
+  assert.doesNotMatch(rustVersionHelper, /recommended_version\.unwrap_or/)
+  const rustInstall = sliceFunction(rustConfig, 'async fn try_standalone_install(', '/// 尝试从 R2 CDN')
+  assert.doesNotMatch(rustInstall, /return Err\(format!\(.*版本.*不匹配/)
+  assert.match(rustInstall, /采用清单版本继续/)
+})

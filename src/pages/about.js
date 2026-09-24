@@ -611,11 +611,11 @@ async function doInstall(page, title, source, version) {
         }
       })
 
-      await api.upgradeOpenclaw(source, version)
+      await api.upgradeOpenclaw(source, version, 'npm')
       modal.appendLog(t('about.taskStarted'))
     } else {
       modal.appendLog(t('about.webModeNoLog'))
-      const msg = await api.upgradeOpenclaw(source, version)
+      const msg = await api.upgradeOpenclaw(source, version, 'npm')
       modal.setDone(typeof msg === 'string' ? msg : (msg?.message || t('about.operationDone')))
       cleanup()
       window.dispatchEvent(new CustomEvent('openclaw:runtime-changed'))
