@@ -304,9 +304,13 @@ pub(crate) fn windows_npm_global_prefix() -> Option<String> {
     }
 
     const CREATE_NO_WINDOW: u32 = 0x08000000;
+    // 使用 enhanced_path 让 `npm` 与安装命令（npm_command_elevated / npm_command）
+    // 解析到同一个 npm —— 便携模式下两者都命中 U 盘 runtimes/node 的 npm，
+    // 避免「安装落点 prefix」与「此处探测的 prefix」分裂导致校验找不到主包。
     let mut cmd = Command::new("cmd");
     cmd.args(["/d", "/s", "/c", "npm config get prefix"]);
     cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd.env("PATH", enhanced_path());
     if let Ok(output) = cmd.output() {
         if output.status.success() {
             let prefix = String::from_utf8_lossy(&output.stdout).trim().to_string();
