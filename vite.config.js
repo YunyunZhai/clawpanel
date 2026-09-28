@@ -74,5 +74,13 @@ export default defineConfig({
     target: ['es2021', 'chrome100', 'safari13'],
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
     sourcemap: !!process.env.TAURI_DEBUG,
+    // 便携模式优化：将所有动态 import 内联为单个 bundle，
+    // 避免 U 盘上 80+ 个 chunk 的随机小文件 IO 拖慢启动
+    rollupOptions: {
+      output: {
+        inlineDynamicImports: true,
+      },
+    },
+    cssCodeSplit: false,
   },
 })

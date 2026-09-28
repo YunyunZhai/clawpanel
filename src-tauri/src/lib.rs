@@ -39,16 +39,22 @@ pub fn run() {
             };
 
             // 1. 优先检查热更新目录
-            let update_file = hot_update_dir.join(path);
-            if update_file.is_file() {
-                if let Ok(data) = std::fs::read(&update_file) {
-                    return tauri::http::Response::builder()
-                        .header(
-                            tauri::http::header::CONTENT_TYPE,
-                            update::mime_from_path(path),
-                        )
-                        .body(data)
-                        .unwrap();
+            //    便携模式下跳过：U 盘上的 is_file() + read() 是昂贵的随机 IO，
+            //    热更新本身也不适用于 U 盘（更新后换机器可能不兼容），
+            //    直接回退到内嵌 bundle（已在内存中）。
+            let is_portable = commands::portable::portable_context().is_some();
+            if !is_portable {
+                let update_file = hot_update_dir.join(path);
+                if update_file.is_file() {
+                    if let Ok(data) = std::fs::read(&update_file) {
+                        return tauri::http::Response::builder()
+                            .header(
+                                tauri::http::header::CONTENT_TYPE,
+                                update::mime_from_path(path),
+                            )
+                            .body(data)
+                            .unwrap();
+                    }
                 }
             }
 
