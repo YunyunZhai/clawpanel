@@ -1149,15 +1149,9 @@ function bindEvents(page, detectState) {
 
   function updateMethodVisibility() {
     const source = page.querySelector('input[name="install-source"]:checked')?.value || 'official'
-    if (source === 'official') {
-      if (methodSection) methodSection.style.display = 'none'
-      if (registrySection) registrySection.style.display = ''
-    } else {
-      if (methodSection) methodSection.style.display = ''
-      const method = methodSelect?.value || 'auto'
-      if (registrySection) registrySection.style.display = (method === 'npm') ? '' : 'none'
-    }
-    if (methodHint && methodSelect) methodHint.textContent = METHOD_HINTS[methodSelect.value] || ''
+    if (methodSection) methodSection.style.display = 'none'
+    if (registrySection) registrySection.style.display = ''
+    if (methodHint && methodSelect) methodHint.textContent = ''
   }
 
   sourceRadios.forEach(r => r.addEventListener('change', updateMethodVisibility))
@@ -1170,7 +1164,7 @@ function bindEvents(page, detectState) {
 
   installBtn.addEventListener('click', async () => {
     const source = page.querySelector('input[name="install-source"]:checked')?.value || 'official'
-    const method = (source === 'official') ? 'npm' : (page.querySelector('#install-method')?.value || 'auto')
+    const method = 'npm'
     const registry = page.querySelector('#registry-select')?.value
     const modal = showUpgradeModal(t('setup.installOpenclaw'))
     let unlistenLog, unlistenProgress
