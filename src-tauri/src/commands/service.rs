@@ -1094,20 +1094,14 @@ mod platform {
             Ok(a) => a,
             Err(_) => return (false, None),
         };
-        // 本机端口拒绝通常会立即返回；限制最坏等待约 1 秒，避免拖慢整个面板。
+        // 单次 500ms 探测。localhost 端口关闭时 TCP RST 会瞬间返回（<1ms），
+        // 超时只兜底防火墙/半开连接场景。之前的两段式(350ms+75ms+650ms)
+        // 在端口关闭时空等 ~1s，每次 Dashboard 加载每个 label 都白付这个成本。
         let connected = std::net::TcpStream::connect_timeout(
             &socket_addr,
-            std::time::Duration::from_millis(350),
+            std::time::Duration::from_millis(500),
         )
-        .is_ok()
-            || {
-                std::thread::sleep(std::time::Duration::from_millis(75));
-                std::net::TcpStream::connect_timeout(
-                    &socket_addr,
-                    std::time::Duration::from_millis(650),
-                )
-                .is_ok()
-            };
+        .is_ok();
         if connected {
             let pid = get_pid_by_lsof(port);
             (true, pid)
@@ -1744,14 +1738,11 @@ mod platform {
             Ok(a) => a,
             Err(_) => return (false, None),
         };
-        // 本机端口拒绝通常会立即返回；限制最坏等待约 1 秒，避免拖慢整个面板。
+        // 单次 500ms 探测。localhost 端口关闭时 TCP RST 瞬间返回（<1ms）。
+        // 之前的两段式(350ms+75ms+650ms)在端口关闭时空等 ~1s，
+        // 每个 label 每次 Dashboard 轮询都白付这个成本。
         let connected =
-            std::net::TcpStream::connect_timeout(&socket_addr, Duration::from_millis(350)).is_ok()
-                || {
-                    std::thread::sleep(Duration::from_millis(75));
-                    std::net::TcpStream::connect_timeout(&socket_addr, Duration::from_millis(650))
-                        .is_ok()
-                };
+            std::net::TcpStream::connect_timeout(&socket_addr, Duration::from_millis(500)).is_ok();
         if !connected {
             // 端口不通，先清空已知的僵死 PID
             let mut known = LAST_KNOWN_GATEWAY_PID.lock().unwrap();
@@ -1765,7 +1756,7 @@ mod platform {
             *known = Some(pid);
             (true, Some(pid))
         } else {
-            // 避免因命令行查询失败误判为“未运行”并触发重复拉起
+            // 避免因命令行查询失败误判为”未运行”并触发重复拉起
             (true, None)
         }
     }
@@ -2235,9 +2226,10 @@ mod platform {
             Ok(a) => a,
             Err(_) => return (false, None),
         };
-        // 使用 spawn_blocking 避免阻塞 Tokio 运行时
+        // 使用 spawn_blocking 避免阻塞 Tokio 运行时。
+        // 单次 500ms 探测，与 macOS/Windows 对齐（之前 Linux 是 1s）。
         let result = tokio::task::spawn_blocking(move || {
-            std::net::TcpStream::connect_timeout(&socket_addr, std::time::Duration::from_secs(1))
+            std::net::TcpStream::connect_timeout(&socket_addr, std::time::Duration::from_millis(500))
                 .is_ok()
         })
         .await

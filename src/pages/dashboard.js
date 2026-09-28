@@ -281,8 +281,10 @@ async function loadDashboardData(page, fullRefresh = false) {
 
 async function _loadDashboardDataInner(page, fullRefresh, loadSeq) {
   syncDashboardInstanceScope()
-  // 分波加载：关键数据先渲染，次要数据后填充，减少白屏等待
-  // 轻量调用（读文件）每次都做；重量调用（spawn CLI/网络请求）只在首次或手动刷新时做
+  // 所有不相互依赖的请求合并为一个并行批次，消除串行等待瓶颈。
+  // 之前在 ARM / 慢机器上 split Wave 1→自愈块→Wave 2→statusSummary 的串行链路
+  // 会累计到 5-15s 白屏；现在 7 个轻量请求同批发出，首屏数据在
+  // max(slowestLightweight, statusSummary+logs) 内到达。
   const withTimeout = (promise, ms) => Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out after ${(ms/1000).toFixed(1)}s`)), ms))
@@ -291,36 +293,49 @@ async function _loadDashboardDataInner(page, fullRefresh, loadSeq) {
   if (shouldFetchVersion && (fullRefresh || versionInfoIncomplete(_dashboardVersionCache))) {
     invalidate('get_version_info')
   }
-  // 每个请求独立超时：避免单个慢请求拖垮整体渲染
-  const coreP = Promise.allSettled([
-    // 后端状态探测已限制在约 1 秒内；这里留出 IPC/低性能设备余量。
+
+  // 第一批：7 个独立请求全部并行（之前分两波串行）
+  const allP = Promise.allSettled([
     withTimeout(api.getServicesStatus(), 2500),
     withTimeout(api.readOpenclawConfig(), 2000),
     withTimeout(api.readPanelConfig(), 2000),
+    withTimeout(api.listAgents(), 5000),
+    withTimeout(api.readMcpConfig(), 5000),
+    withTimeout(api.listBackups(), 5000),
+    withTimeout(api.listConfiguredPlatforms(), 5000).catch(() => []),
   ])
 
-  // 第一波：服务状态 + 配置 + 版本 → 立即渲染统计卡片
-  const [servicesRes, configRes, panelConfigRes] = await coreP
+  const [servicesRes, configRes, panelConfigRes, agentsRes, mcpRes, backupsRes, channelsRes] = await allP
   // 排队期间可能已发起更新的加载：勿用淘汰中的结果改缓存、弹 toast 或写配置（避免与较新加载竞态）
   if (loadSeq !== _dashboardLoadSeq || !page.isConnected) return
+
   const services = servicesRes.status === 'fulfilled' ? servicesRes.value : []
   let version = _dashboardVersionCache || {}
   let config = configRes.status === 'fulfilled' ? configRes.value : null
   const panelConfig = panelConfigRes.status === 'fulfilled' ? panelConfigRes.value : null
   const gw = services.find(s => s.label === 'ai.openclaw.gateway')
-  let agents = []
+  const agents = agentsRes.status === 'fulfilled' ? agentsRes.value : []
+  const mcpConfig = mcpRes.status === 'fulfilled' ? mcpRes.value : null
+  const backups = backupsRes.status === 'fulfilled' ? backupsRes.value : []
+  const channels = channelsRes.status === 'fulfilled' ? (channelsRes.value || []) : []
+
   const shouldLoadStatusSummary = gw?.running === true
   if (!shouldLoadStatusSummary) {
     _dashboardStatusSummaryCache = null
   }
+
   if (servicesRes.status === 'rejected') {
     console.warn('[dashboard] getServicesStatus slow/failed:', servicesRes.reason)
     toast(t('dashboard.servicesLoadFail'), 'error')
   }
   if (configRes.status === 'rejected') console.warn('[dashboard] readOpenclawConfig slow/failed:', configRes.reason)
   if (panelConfigRes.status === 'rejected') console.warn('[dashboard] readPanelConfig slow/failed:', panelConfigRes.reason)
+  if (agentsRes.status === 'rejected') console.warn('[dashboard] listAgents slow/failed:', agentsRes.reason)
+  if (mcpRes.status === 'rejected') console.warn('[dashboard] readMcpConfig slow/failed:', mcpRes.reason)
+  if (backupsRes.status === 'rejected') console.warn('[dashboard] listBackups slow/failed:', backupsRes.reason)
+  if (channelsRes.status === 'rejected') console.warn('[dashboard] listConfiguredPlatforms slow/failed:', channelsRes.reason)
 
-  // 自愈：补全关键默认值（先重新读取最新配置再 patch，避免用缓存覆盖其他页面的写入）
+  // 自愈：推迟到渲染后异步执行，不再阻塞首屏（之前夹在 Wave1 和 Wave2 之间额外串行往返）
   if (config) {
     let needsPatch = false
     if (!config.gateway?.mode) needsPatch = true
@@ -328,34 +343,37 @@ async function _loadDashboardDataInner(page, fullRefresh, loadSeq) {
     if (!config.tools || config.tools.profile !== 'full') needsPatch = true
     if (defaultModelNeedsNormalization(config)) needsPatch = true
     if (needsPatch) {
-      try {
-        const freshConfig = await api.readOpenclawConfig()
-        if (loadSeq !== _dashboardLoadSeq || !page.isConnected) return
-        let patched = false
-        if (!freshConfig.gateway) freshConfig.gateway = {}
-        if (!freshConfig.gateway.mode) { freshConfig.gateway.mode = 'local'; patched = true }
-        if (freshConfig.mode) { delete freshConfig.mode; patched = true }
-        if (!freshConfig.tools || freshConfig.tools.profile !== 'full') {
-          freshConfig.tools = { profile: 'full', sessions: { visibility: 'all' }, ...(freshConfig.tools || {}) }
-          freshConfig.tools.profile = 'full'
-          if (!freshConfig.tools.sessions) freshConfig.tools.sessions = {}
-          freshConfig.tools.sessions.visibility = 'all'
-          patched = true
-        }
-        if (defaultModelNeedsNormalization(freshConfig)) {
-          normalizeDefaultModelConfig(freshConfig)
-          patched = true
-        }
-        if (patched) {
-          config = freshConfig
-          api.writeOpenclawConfig(freshConfig).catch(() => {})
-        }
-      } catch {}
+      ;(async () => {
+        try {
+          const freshConfig = await api.readOpenclawConfig()
+          if (loadSeq !== _dashboardLoadSeq || !page.isConnected) return
+          let patched = false
+          if (!freshConfig.gateway) freshConfig.gateway = {}
+          if (!freshConfig.gateway.mode) { freshConfig.gateway.mode = 'local'; patched = true }
+          if (freshConfig.mode) { delete freshConfig.mode; patched = true }
+          if (!freshConfig.tools || freshConfig.tools.profile !== 'full') {
+            freshConfig.tools = { profile: 'full', sessions: { visibility: 'all' }, ...(freshConfig.tools || {}) }
+            freshConfig.tools.profile = 'full'
+            if (!freshConfig.tools.sessions) freshConfig.tools.sessions = {}
+            freshConfig.tools.sessions.visibility = 'all'
+            patched = true
+          }
+          if (defaultModelNeedsNormalization(freshConfig)) {
+            normalizeDefaultModelConfig(freshConfig)
+            patched = true
+          }
+          if (patched) {
+            api.writeOpenclawConfig(freshConfig).catch(() => {})
+          }
+        } catch {}
+      })()
     }
   }
 
   if (loadSeq !== _dashboardLoadSeq || !page.isConnected) return
-  renderStatCards(page, services, version, [], config, panelConfig)
+
+  // 一次性渲染 stat cards（所有轻量数据已就绪，之前要分 3 次 innerHTML 全量重建）
+  renderStatCards(page, services, version, agents, config, panelConfig)
   renderLogs(page, '')
   if (gw) {
     maybeShowForeignGatewayBindingPrompt({
@@ -364,6 +382,7 @@ async function _loadDashboardDataInner(page, fullRefresh, loadSeq) {
     }).catch(() => {})
   }
 
+  // 第二批：重量调用并行发起（versionP 是 fire-and-forget 更新 stat cards）
   const versionP = shouldFetchVersion
     ? withTimeout(api.getVersionInfo(), 8000)
       .then(v => {
@@ -381,41 +400,24 @@ async function _loadDashboardDataInner(page, fullRefresh, loadSeq) {
     renderStatCards(page, services, version, agents, config, panelConfig)
   })
 
-  const secondaryP = Promise.allSettled([
-    withTimeout(api.listAgents(), 5000),
-    withTimeout(api.readMcpConfig(), 5000),
-    withTimeout(api.listBackups(), 5000),
-    withTimeout(api.listConfiguredPlatforms(), 5000).catch(() => []),
-  ])
+  // statusSummary 与 logs 并行发起（之前 statusSummary 串在 secondaryP 之后）
+  const statusSummaryP = (shouldLoadStatusSummary && (!_dashboardInitialized || fullRefresh || !_dashboardStatusSummaryCache))
+    ? withTimeout(api.getStatusSummary(), 10000)
+      .then(s => { _dashboardStatusSummaryCache = s; return s })
+      .catch(() => _dashboardStatusSummaryCache)
+    : Promise.resolve(_dashboardStatusSummaryCache)
+
   const logsP = withTimeout(api.readLogTail('gateway', 20), 5000).catch(e => {
     console.warn('[dashboard] readLogTail slow/failed:', e)
     return ''
   })
 
-  // 第二波：Agent、MCP、备份 → 更新卡片 + 渲染总览
-  const [agentsRes, mcpRes, backupsRes, channelsRes] = await secondaryP
+  // 等待重量数据后渲染 overview + logs
+  const statusSummary = await statusSummaryP
   if (loadSeq !== _dashboardLoadSeq || !page.isConnected) return
-  agents = agentsRes.status === 'fulfilled' ? agentsRes.value : []
-  const mcpConfig = mcpRes.status === 'fulfilled' ? mcpRes.value : null
-  const backups = backupsRes.status === 'fulfilled' ? backupsRes.value : []
-  const channels = channelsRes.status === 'fulfilled' ? (channelsRes.value || []) : []
-  let statusSummary = null
-  if (shouldLoadStatusSummary) {
-    try {
-      statusSummary = (!_dashboardInitialized || fullRefresh || !_dashboardStatusSummaryCache)
-        ? await withTimeout(api.getStatusSummary(), 10000)
-        : _dashboardStatusSummaryCache
-      _dashboardStatusSummaryCache = statusSummary
-    } catch {
-      statusSummary = _dashboardStatusSummaryCache
-    }
-  }
-
-  renderStatCards(page, services, version, agents, config, panelConfig)
   renderOverview(page, services, mcpConfig, backups, config, agents, statusSummary, channels)
   renderOnboarding(page, { gw, config, agents, channels })
 
-  // 第三波：日志（最低优先级）
   const logs = await logsP
   if (loadSeq !== _dashboardLoadSeq || !page.isConnected) return
   renderLogs(page, logs)

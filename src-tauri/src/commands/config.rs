@@ -5,6 +5,9 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
+use std::sync::Mutex;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -940,6 +943,46 @@ fn pre_install_cleanup() {
                 }
             }
         }
+    }
+
+    // 4. 清理 npm 全局 node_modules 中的 staging 临时目录
+    // npm install 安装包时会创建类似 .openclaw-zh-pSJRF3fm 的临时目录，
+    // 在 rename 阶段失败或进程被杀死后会残留，后续安装/卸载不会自动清除。
+    for prefix in &["openclaw", "openclaw-zh"] {
+        let dot_prefix = format!(".{prefix}-");
+        // 扫描 npm 全局 node_modules 根
+        if let Some(modules_dir) = npm_global_modules_dir() {
+            cleanup_npm_staging_dirs(&modules_dir, &dot_prefix);
+        }
+        // 扫描 @qingchencloud scope 子目录
+        if let Some(scope_dir) =
+            npm_global_modules_dir().map(|d| d.join("@qingchencloud"))
+        {
+            cleanup_npm_staging_dirs(&scope_dir, &dot_prefix);
+        }
+    }
+}
+
+/// 清理 npm staging 临时目录：删除 dir 下以 dot_prefix 开头的子目录
+fn cleanup_npm_staging_dirs(dir: &std::path::Path, dot_prefix: &str) {
+    if !dir.exists() {
+        return;
+    }
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if !name_str.starts_with(dot_prefix) {
+            continue;
+        }
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let _ = std::fs::remove_dir_all(&path);
     }
 }
 
@@ -2805,7 +2848,7 @@ async fn get_local_version() -> Option<String> {
         }
     }
 
-    // 所有平台通用 fallback: CLI 输出
+    // 所有平台通用 fallback: CLI 输出（带 3s 超时，防止 CLI 卡死时无限等待）
     // Windows: 先确认 openclaw 不是第三方程序（如 CherryStudio）
     #[cfg(target_os = "windows")]
     {
@@ -2827,11 +2870,10 @@ async fn get_local_version() -> Option<String> {
     }
 
     use crate::utils::openclaw_command_async;
-    let output = openclaw_command_async()
-        .arg("--version")
-        .output()
+    let output = tokio::time::timeout(Duration::from_secs(3), openclaw_command_async().arg("--version").output())
         .await
-        .ok()?;
+        .ok()
+        .and_then(|r| r.ok())?;
     let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
     // 输出格式: "OpenClaw 2026.3.24 (hash)" → 取第一个数字开头的词（版本号）
     raw.split_whitespace()
@@ -2839,8 +2881,27 @@ async fn get_local_version() -> Option<String> {
         .map(String::from)
 }
 
-/// 从 npm registry 获取最新版本号，超时 5 秒
+/// 进程级 npm latest 版本缓存（60s TTL），避免每次 dashboard 加载都
+/// 发一次 npm registry HTTP。key = source ("official" / "chinese")。
+static LATEST_VERSION_CACHE: OnceLock<Mutex<HashMap<String, (String, Instant)>>> = OnceLock::new();
+const LATEST_VERSION_CACHE_TTL: Duration = Duration::from_secs(60);
+
+fn latest_version_cache() -> &'static Mutex<HashMap<String, (String, Instant)>> {
+    LATEST_VERSION_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// 从 npm registry 获取最新版本号（带进程级 60s 缓存）
 async fn get_latest_version_for(source: &str) -> Option<String> {
+    // 缓存命中 → 直接返回
+    {
+        let cache = latest_version_cache().lock().unwrap();
+        if let Some((ver, ts)) = cache.get(source) {
+            if ts.elapsed() < LATEST_VERSION_CACHE_TTL {
+                return Some(ver.clone());
+            }
+        }
+    }
+
     let client =
         crate::commands::build_http_client(std::time::Duration::from_secs(2), None).ok()?;
     let pkg = npm_package_name(source)
@@ -2848,11 +2909,27 @@ async fn get_latest_version_for(source: &str) -> Option<String> {
         .replace('@', "%40");
     let registry = get_configured_registry();
     let url = format!("{registry}/{pkg}/latest");
-    let resp = client.get(&url).send().await.ok()?;
-    let json: Value = resp.json().await.ok()?;
-    json.get("version")
-        .and_then(|v| v.as_str())
-        .map(String::from)
+
+    // 外层加 3s 总超时（建连 + 读取），避免网络抖动时无限等待
+    let fut = async {
+        let resp = client.get(&url).send().await.ok()?;
+        let json: Value = resp.json().await.ok()?;
+        json.get("version")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    };
+    let result = tokio::time::timeout(Duration::from_secs(3), fut)
+        .await
+        .ok()
+        .flatten();
+
+    // 写缓存（即使失败也缓存 None，避免重复无意义的 HTTP 请求）
+    if let Some(ref ver) = result {
+        let mut cache = latest_version_cache().lock().unwrap();
+        cache.insert(source.to_string(), (ver.clone(), Instant::now()));
+    }
+
+    result
 }
 
 /// 从 Windows .cmd shim 文件内容判断实际关联的 npm 包来源
@@ -3636,10 +3713,176 @@ fn read_version_from_installation(cli_path: &std::path::Path) -> Option<String> 
     None
 }
 
+/// 从文件系统构造状态摘要，不 spawn CLI 进程（毫秒级）。
+/// 返回的 JSON 形状与 `openclaw status --json` 兼容，前端 renderSessionStatus
+/// 依赖 sessions.recent 字段展示活跃会话。文件读取拿不到
+/// sessions.recent（实时 token 用量），此时前端会因数组为空而隐藏该区块
+/// ——与 Web 模式行为一致。
+fn build_status_summary_from_files() -> Result<Value, String> {
+    let config = load_openclaw_json()?;
+
+    let default_model = config
+        .pointer("/agents/defaults/model/primary")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let channel_summary: Vec<String> = config
+        .get("channels")
+        .and_then(|v| v.as_object())
+        .map(|channels| {
+            channels
+                .iter()
+                .map(|(id, val)| {
+                    let enabled = val
+                        .get("enabled")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    if enabled {
+                        format!("{id}: configured")
+                    } else {
+                        format!("{id}: disabled")
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // 版本号：只走文件探测，不 spawn CLI
+    let runtime_version = resolve_version_from_files_only();
+
+    Ok(json!({
+        "runtimeVersion": runtime_version,
+        "heartbeat": {
+            "defaultAgentId": "main",
+            "agents": [],
+        },
+        "channelSummary": channel_summary,
+        "sessions": {
+            "defaults": { "model": default_model }
+        },
+        "source": "file-read"
+    }))
+}
+
+/// 纯文件版本探测：与 get_local_version 的文件探测部分完全一致，但绝不
+/// 回退到 spawn CLI（避免把 3-10s Node 冷启动引入状态摘要热路径）。
+fn resolve_version_from_files_only() -> Option<String> {
+    // 1. 活跃 CLI 路径
+    if let Some(cli_path) = crate::utils::resolve_openclaw_cli_path() {
+        let resolved = std::fs::canonicalize(&cli_path)
+            .ok()
+            .unwrap_or_else(|| std::path::PathBuf::from(&cli_path));
+        if let Some(ver) = read_version_from_installation(&resolved)
+            .or_else(|| read_version_from_installation(std::path::Path::new(&cli_path)))
+        {
+            return Some(ver);
+        }
+    }
+
+    // 2. macOS Homebrew symlink
+    #[cfg(target_os = "macos")]
+    {
+        for brew_prefix in &["/opt/homebrew/bin", "/usr/local/bin"] {
+            let openclaw_path = format!("{brew_prefix}/openclaw");
+            if let Ok(target) = std::fs::read_link(&openclaw_path) {
+                let pkg_json = std::path::PathBuf::from(brew_prefix)
+                    .join(&target)
+                    .parent()
+                    .map(|p| p.join("package.json"));
+                if let Some(ref pkg_path) = pkg_json {
+                    if let Ok(content) = std::fs::read_to_string(pkg_path) {
+                        if let Some(ver) = serde_json::from_str::<Value>(&content)
+                            .ok()
+                            .and_then(|v| v.get("version")?.as_str().map(String::from))
+                        {
+                            return Some(ver);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. standalone 目录
+    for sa_dir in all_standalone_dirs() {
+        #[cfg(target_os = "windows")]
+        {
+            if !sa_dir.join("openclaw.cmd").exists() {
+                continue;
+            }
+        }
+        // VERSION 文件
+        let version_file = sa_dir.join("VERSION");
+        if let Ok(content) = std::fs::read_to_string(&version_file) {
+            for line in content.lines() {
+                if let Some(ver) = line.strip_prefix("openclaw_version=") {
+                    let ver = ver.trim();
+                    if !ver.is_empty() {
+                        return Some(ver.to_string());
+                    }
+                }
+            }
+        }
+        // package.json（standalone/node_modules/包名/package.json）
+        #[cfg(target_os = "windows")]
+        let pkg_paths: &[&str] = &[
+            "node_modules/@qingchencloud/openclaw-zh/package.json",
+            "node_modules/openclaw/package.json",
+        ];
+        #[cfg(not(target_os = "windows"))]
+        let pkg_paths: &[&str] = &[
+            "node_modules/@qingchencloud/openclaw-zh/package.json",
+            "node_modules/openclaw/package.json",
+        ];
+        for rel in pkg_paths {
+            let pkg = sa_dir.join(rel);
+            if let Ok(content) = std::fs::read_to_string(&pkg) {
+                if let Some(ver) = serde_json::from_str::<Value>(&content)
+                    .ok()
+                    .and_then(|v| v.get("version")?.as_str().map(String::from))
+                {
+                    return Some(ver);
+                }
+            }
+        }
+    }
+
+    // 4. Linux: /usr/local/bin/openclaw symlink → package.json
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(target) = std::fs::read_link("/usr/local/bin/openclaw") {
+            let pkg_json = std::path::PathBuf::from("/usr/local/bin")
+                .join(&target)
+                .parent()
+                .map(|p| p.join("package.json"));
+            if let Some(ref pkg_path) = pkg_json {
+                if let Ok(content) = std::fs::read_to_string(pkg_path) {
+                    if let Some(ver) = serde_json::from_str::<Value>(&content)
+                        .ok()
+                        .and_then(|v| v.get("version")?.as_str().map(String::from))
+                    {
+                        return Some(ver);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// 获取 OpenClaw 运行时状态摘要（openclaw status --json）
 /// 包含 runtimeVersion、会话列表（含 token 用量、fastMode 等标签）
 #[tauri::command]
 pub async fn get_status_summary() -> Result<Value, String> {
+    // 优先读文件构造（毫秒级），与 Web 模式 dev-api.js 行为对齐。
+    // ARM / 慢机器上 spawn `openclaw status --json` 会启动 ~380MB 的 Node.js
+    // 进程，冷启动 3-10s，是 Dashboard 加载最大的瓶颈。
+    if let Ok(summary) = build_status_summary_from_files() {
+        return Ok(summary);
+    }
+    // 兜底：spawn CLI（兼容异常配置，如 openclaw.json 损坏无法读取）
     let output = crate::utils::openclaw_command_async()
         .args(["status", "--json"])
         .output()
@@ -4035,6 +4278,8 @@ fn replace_standalone_install(
         if old_install_moved && !install_dir.exists() && backup_dir.exists() {
             let _ = std::fs::rename(backup_dir, install_dir);
         }
+        // 激活失败，staging 无法 rename 到 install，清理残留
+        let _ = std::fs::remove_dir_all(staging_dir);
         return Err(format!("激活新 standalone 安装失败，已恢复原版本: {error}"));
     }
     if old_install_moved {
@@ -4273,11 +4518,15 @@ async fn try_standalone_install(
             std::fs::File::open(&archive_path).map_err(|e| format!("打开归档失败: {e}"))?;
         let mut zip_archive =
             zip::ZipArchive::new(archive_file).map_err(|e| format!("ZIP 解析失败: {e}"))?;
-        zip_archive
-            .extract(&staging_dir)
-            .map_err(|e| format!("ZIP 解压失败: {e}"))?;
+        zip_archive.extract(&staging_dir).map_err(|e| {
+            let _ = std::fs::remove_dir_all(&staging_dir);
+            format!("ZIP 解压失败: {e}")
+        })?;
         // 归档内可能有 openclaw/ 子目录，需要提升一层
-        promote_nested_standalone_dir(&staging_dir, "node.exe")?;
+        promote_nested_standalone_dir(&staging_dir, "node.exe").map_err(|e| {
+            let _ = std::fs::remove_dir_all(&staging_dir);
+            e
+        })?;
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -4291,8 +4540,12 @@ async fn try_standalone_install(
                 "--strip-components=1",
             ])
             .status()
-            .map_err(|e| format!("解压失败: {e}"))?;
+            .map_err(|e| {
+                let _ = std::fs::remove_dir_all(&staging_dir);
+                format!("解压失败: {e}")
+            })?;
         if !status.success() {
+            let _ = std::fs::remove_dir_all(&staging_dir);
             return Err("tar 解压失败".into());
         }
     }
@@ -4302,8 +4555,18 @@ async fn try_standalone_install(
     let _ = app.emit("upgrade-progress", 85);
 
     // 6. 验证 staging 并切换
-    let verified_version = verify_standalone_install(&staging_dir, &remote_version)?;
-    replace_standalone_install(&staging_dir, &install_dir, &backup_dir)?;
+    let verified_version = verify_standalone_install(&staging_dir, &remote_version)
+        .map_err(|e| {
+            let _ = std::fs::remove_dir_all(&staging_dir);
+            e
+        })?;
+    replace_standalone_install(&staging_dir, &install_dir, &backup_dir)
+        .map_err(|e| {
+            // replace_standalone_install 内部已尝试清理 staging，
+            // 但 rename staging→install 可能部分成功，确保残留被清理
+            let _ = std::fs::remove_dir_all(&staging_dir);
+            e
+        })?;
 
     #[cfg(target_os = "windows")]
     let openclaw_bin = install_dir.join("openclaw.cmd");

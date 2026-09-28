@@ -2617,7 +2617,14 @@ function getLocalOpenclawVersion() {
   return current || null
 }
 
+const _latestVersionCache = new Map()
+const LATEST_VERSION_CACHE_TTL = 60000 // 60s 服务端缓存，减少 npm registry HTTP 调用频率
+
 async function getLatestVersionFor(source = 'official') {
+  const cacheKey = `latest:${source}`
+  const cached = _latestVersionCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < LATEST_VERSION_CACHE_TTL) return cached.val
+
   const pkg = npmPackageName(source)
   const encodedPkg = pkg.replace('/', '%2F').replace('@', '%40')
   const firstRegistry = pickRegistryForPackage(pkg)
@@ -2627,9 +2634,14 @@ async function getLatestVersionFor(source = 'official') {
       const resp = await fetch(`${registry}/${encodedPkg}/latest`, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(10000) })
       if (!resp.ok) continue
       const data = await resp.json()
-      if (data?.version) return data.version
+      if (data?.version) {
+        _latestVersionCache.set(cacheKey, { val: data.version, ts: Date.now() })
+        return data.version
+      }
     } catch {}
   }
+  // 缓存失败结果（null），避免网络故障时重复 HTTP 请求
+  _latestVersionCache.set(cacheKey, { val: null, ts: Date.now() })
   return null
 }
 
