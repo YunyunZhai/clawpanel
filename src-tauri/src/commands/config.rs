@@ -8049,6 +8049,22 @@ pub fn scan_git_paths() -> Result<Value, String> {
         let choco_dir = std::env::var("ChocolateyInstall")
             .unwrap_or_else(|_| r"C:\ProgramData\chocolatey".into());
         candidates.push((format!(r"{}\bin\git.exe", choco_dir), "CHOCOLATEY".into()));
+
+        // 便携模式：U 盘 runtimes/git/cmd/git.exe
+        if let Some(ctx) = crate::commands::portable::portable_context() {
+            let portable_git = ctx
+                .root
+                .join("runtimes")
+                .join("git")
+                .join("cmd")
+                .join("git.exe");
+            if portable_git.exists() {
+                candidates.push((
+                    portable_git.to_string_lossy().to_string(),
+                    "PORTABLE".into(),
+                ));
+            }
+        }
     }
 
     #[cfg(not(target_os = "windows"))]

@@ -916,10 +916,33 @@ fn build_enhanced_path() -> String {
         if let Some(ref cp) = custom_path {
             parts.push(cp.as_str());
         }
-        // 然后是默认扫描到的路径（去重）
+
+        // 便携模式：U 盘 runtimes/git 目录（高优先级，不受存在性检查约束，
+        // 确保 even 首次启动、未下载 git 前也被 where/which 搜索到）
+        let mut portable_git_paths: Vec<String> = Vec::new();
+        if let Some(ctx) = crate::commands::portable::portable_context() {
+            for sub in ["cmd", "usr/bin", "mingw64/bin"] {
+                portable_git_paths.push(
+                    ctx.root
+                        .join("runtimes")
+                        .join("git")
+                        .join(sub)
+                        .to_string_lossy()
+                        .to_string(),
+                );
+            }
+        }
+
         let mut seen = std::collections::HashSet::new();
+        // 便携 git 路径优先（不检查 exists()）
+        for p in &portable_git_paths {
+            if seen.insert(p.to_lowercase()) {
+                parts.push(p.as_str());
+            }
+        }
+        // 然后是默认扫描到的路径（去重，需存在）
         for p in &extra {
-            if std::path::Path::new(p).exists() && seen.insert(p.clone()) {
+            if std::path::Path::new(p).exists() && seen.insert(p.to_lowercase()) {
                 parts.push(p.as_str());
             }
         }
