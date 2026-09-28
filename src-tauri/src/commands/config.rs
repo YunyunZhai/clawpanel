@@ -5131,10 +5131,15 @@ async fn upgrade_openclaw_inner(
 
     ensure_target_node_runtime_compatible_for_npm(ver)?;
 
-    // 切换源时需要卸载旧包，但为避免安装失败导致 CLI 丢失，
-    // 先安装新包，成功后再卸载旧包
+    // 跨包切换时需要切换 npm 包名（如 openclaw ↔ @qingchencloud/openclaw-zh）
     let old_pkg = npm_package_name(&current_source);
-    let need_uninstall_old = current_source != source && old_pkg != pkg_name;
+    let need_switch_pkg = current_source != source && old_pkg != pkg_name;
+    // 记住旧包版本，用于新包安装失败时的恢复
+    let old_pkg_version_for_rollback = if need_switch_pkg {
+        current_version_before.clone()
+    } else {
+        None
+    };
 
     if requested_version.is_none() {
         if let Some(recommended) = &recommended_version {
@@ -5160,11 +5165,61 @@ async fn upgrade_openclaw_inner(
         ),
     );
 
-    // 安装前：停止 Gateway 并清理可能冲突的 bin 文件
+    // 安装前：停止 Gateway 并清理可能冲突的残留文件
     let _ = app.emit("upgrade-log", "正在停止 Gateway 并清理旧文件...");
     pre_install_cleanup();
 
-    let _ = app.emit("upgrade-log", format!("$ npm install -g {pkg} --force"));
+    // 汉化版只支持官方源和淘宝源
+    let configured_registry = get_configured_registry();
+    let registry = if pkg_name.contains("openclaw-zh") {
+        if configured_registry.contains("npmmirror.com")
+            || configured_registry.contains("taobao.org")
+        {
+            configured_registry.as_str()
+        } else {
+            "https://registry.npmjs.org"
+        }
+    } else {
+        configured_registry.as_str()
+    };
+
+    let _ = app.emit("upgrade-progress", 10);
+
+    // ── 跨包切换：先卸载旧包，避免 bin 冲突（新包安装无需 --force） ──
+    if need_switch_pkg {
+        let _ = app.emit("upgrade-log", format!("切换 npm 包: {old_pkg} → {pkg_name}"));
+        let _ = app.emit("upgrade-log", format!("$ npm uninstall -g {old_pkg}"));
+        let _ = app.emit("upgrade-progress", 15);
+
+        let uninstall_child = npm_command_elevated()
+            .args(["uninstall", "-g", old_pkg])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+        match uninstall_child {
+            Ok(mut child) => {
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+                loop {
+                    match child.try_wait() {
+                        Ok(Some(_status)) => break,
+                        Ok(None) => {
+                            if std::time::Instant::now() >= deadline {
+                                let _ = child.kill();
+                                let _ = app.emit("upgrade-log", "⚠️ 卸载旧包超时（60s），继续安装新包");
+                                break;
+                            }
+                            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        }
+                        Err(_) => break,
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = app.emit("upgrade-log", format!("⚠️ 卸载旧包启动失败: {e}，继续安装新包"));
+            }
+        }
+    }
+
     #[cfg(target_os = "linux")]
     {
         if !nix_is_root() {
@@ -5190,32 +5245,14 @@ async fn upgrade_openclaw_inner(
             }
         }
     }
-    let _ = app.emit("upgrade-progress", 10);
+    let _ = app.emit("upgrade-progress", 20);
 
-    // 汉化版只支持官方源和淘宝源
-    let configured_registry = get_configured_registry();
-    let registry = if pkg_name.contains("openclaw-zh") {
-        // 汉化版：淘宝源或官方源
-        if configured_registry.contains("npmmirror.com")
-            || configured_registry.contains("taobao.org")
-        {
-            configured_registry.as_str()
-        } else {
-            "https://registry.npmjs.org"
-        }
-    } else {
-        // 官方版：使用用户配置的镜像源
-        configured_registry.as_str()
-    };
-
+    // ── 安装新包（跨包切换时旧包已卸载，同包升级 npm 原地替换，均无需 --force） ──
+    let _ = app.emit("upgrade-log", format!("$ npm install -g {pkg} --verbose"));
     let mut install_cmd = npm_command_elevated();
     install_cmd.args([
-        "install",
-        "-g",
-        &pkg,
-        "--force",
-        "--registry",
-        registry,
+        "install", "-g", &pkg,
+        "--registry", registry,
         "--verbose",
     ]);
     apply_git_install_env(&mut install_cmd);
@@ -5228,13 +5265,13 @@ async fn upgrade_openclaw_inner(
     let stderr = child.stderr.take();
     let stdout = child.stdout.take();
 
-    // stderr 每行递增进度（10→80 区间），让用户看到进度在动
+    // stderr 每行递增进度（20→80 区间），让用户看到进度在动
     // 同时收集 stderr 用于失败时返回给前端诊断
     let app2 = app.clone();
     let stderr_lines = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let stderr_lines2 = stderr_lines.clone();
     let handle = std::thread::spawn(move || {
-        let mut progress: u32 = 15;
+        let mut progress: u32 = 25;
         if let Some(pipe) = stderr {
             for line in BufReader::new(pipe).lines().map_while(Result::ok) {
                 let _ = app2.emit("upgrade-log", &line);
@@ -5255,74 +5292,83 @@ async fn upgrade_openclaw_inner(
 
     let _ = handle.join();
     let _ = app.emit("upgrade-progress", 80);
-
     let status = child.wait().map_err(|e| format!("等待进程失败: {e}"))?;
     let _ = app.emit("upgrade-progress", 100);
 
+    // ── 安装失败处理 ──
     if !status.success() {
         let code = status
             .code()
             .map(|c| c.to_string())
             .unwrap_or("unknown".into());
+        let tail = stderr_lines
+            .lock()
+            .unwrap()
+            .iter()
+            .rev()
+            .take(15)
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
 
-        // 如果使用了镜像源失败，自动降级到官方源重试
+        // 镜像源失败 → 官方源重试一次
         let used_mirror = registry.contains("npmmirror.com") || registry.contains("taobao.org");
         if used_mirror {
             let _ = app.emit("upgrade-log", "");
             let _ = app.emit("upgrade-log", "⚠️ 镜像源安装失败，自动切换到官方源重试...");
-            let _ = app.emit("upgrade-progress", 15);
+            let _ = app.emit("upgrade-progress", 20);
             let fallback = "https://registry.npmjs.org";
-            let mut install_cmd2 = npm_command_elevated();
-            install_cmd2.args([
-                "install",
-                "-g",
-                &pkg,
-                "--force",
-                "--registry",
-                fallback,
+            let mut retry_cmd = npm_command_elevated();
+            retry_cmd.args([
+                "install", "-g", &pkg,
+                "--registry", fallback,
                 "--verbose",
             ]);
-            apply_git_install_env(&mut install_cmd2);
-            let mut child2 = install_cmd2
+            apply_git_install_env(&mut retry_cmd);
+            let mut retry_child = retry_cmd
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
                 .map_err(|e| format!("执行重试命令失败: {e}"))?;
-            let stderr2 = child2.stderr.take();
-            let stdout2 = child2.stdout.take();
-            let app3 = app.clone();
-            let stderr_lines3 = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
-            let stderr_lines4 = stderr_lines3.clone();
-            let handle2 = std::thread::spawn(move || {
-                if let Some(pipe) = stderr2 {
-                    let mut p: u32 = 20;
+            let retry_stderr = retry_child.stderr.take();
+            let retry_stdout = retry_child.stdout.take();
+            let app_retry = app.clone();
+            let retry_lines = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+            let retry_lines2 = retry_lines.clone();
+            let retry_handle = std::thread::spawn(move || {
+                if let Some(pipe) = retry_stderr {
+                    let mut p: u32 = 25;
                     for line in BufReader::new(pipe).lines().map_while(Result::ok) {
-                        let _ = app3.emit("upgrade-log", &line);
-                        stderr_lines4.lock().unwrap().push(line);
+                        let _ = app_retry.emit("upgrade-log", &line);
+                        retry_lines2.lock().unwrap().push(line);
                         if p < 75 {
                             p += 2;
-                            let _ = app3.emit("upgrade-progress", p);
+                            let _ = app_retry.emit("upgrade-progress", p);
                         }
                     }
                 }
             });
-            if let Some(pipe) = stdout2 {
+            if let Some(pipe) = retry_stdout {
                 for line in BufReader::new(pipe).lines().map_while(Result::ok) {
                     let _ = app.emit("upgrade-log", &line);
                 }
             }
-            let _ = handle2.join();
+            let _ = retry_handle.join();
             let _ = app.emit("upgrade-progress", 80);
-            let status2 = child2
+            let retry_status = retry_child
                 .wait()
                 .map_err(|e| format!("等待重试进程失败: {e}"))?;
             let _ = app.emit("upgrade-progress", 100);
-            if !status2.success() {
-                let code2 = status2
+
+            if retry_status.success() {
+                let _ = app.emit("upgrade-log", "✅ 官方源安装成功");
+            } else {
+                let retry_code = retry_status
                     .code()
                     .map(|c| c.to_string())
                     .unwrap_or("unknown".into());
-                let tail = stderr_lines3
+                let retry_tail = retry_lines
                     .lock()
                     .unwrap()
                     .iter()
@@ -5332,150 +5378,24 @@ async fn upgrade_openclaw_inner(
                     .cloned()
                     .collect::<Vec<_>>()
                     .join("\n");
+                // 跨包切换且两次都失败 → 尝试恢复旧包
+                if need_switch_pkg {
+                    rollback_install(&app, old_pkg, old_pkg_version_for_rollback.as_deref(), registry).await;
+                }
                 return Err(format!(
-                    "升级失败（镜像源和官方源均失败），exit code: {code2}\n{tail}"
+                    "升级失败（镜像源和官方源均失败），exit code: {retry_code}\n{retry_tail}"
                 ));
             }
-            let _ = app.emit("upgrade-log", "✅ 官方源安装成功");
         } else {
-            let _ = app.emit("upgrade-log", format!("❌ 升级失败 (exit code: {code})"));
-            let tail = stderr_lines
-                .lock()
-                .unwrap()
-                .iter()
-                .rev()
-                .take(15)
-                .rev()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join("\n");
+            // 官方源失败 → 跨包切换时恢复旧包
+            if need_switch_pkg {
+                rollback_install(&app, old_pkg, old_pkg_version_for_rollback.as_deref(), registry).await;
+            }
             return Err(format!("升级失败，exit code: {code}\n{tail}"));
         }
     }
 
-    // 安装成功后再卸载旧包（确保 CLI 始终可用）
-    // 清理步骤采用错误隔离：任何清理失败都不影响安装成功的最终结果
-    if need_uninstall_old {
-        let _ = app.emit("upgrade-log", format!("清理旧版本 ({old_pkg})..."));
-        // npm uninstall 加 30s 超时，避免无限卡住
-        let uninstall_child = npm_command_elevated()
-            .args(["uninstall", "-g", old_pkg])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn();
-        match uninstall_child {
-            Ok(mut child) => {
-                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-                loop {
-                    match child.try_wait() {
-                        Ok(Some(_status)) => break,
-                        Ok(None) => {
-                            if std::time::Instant::now() >= deadline {
-                                let _ = child.kill();
-                                let _ = app.emit("upgrade-log", "⚠️ 清理旧版本超时（30s），已跳过");
-                                break;
-                            }
-                            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                        }
-                        Err(_) => break,
-                    }
-                }
-            }
-            Err(e) => {
-                let _ = app.emit("upgrade-log", format!("⚠️ 清理旧版本启动失败: {e}，已跳过"));
-            }
-        }
-
-        // 清理 standalone 安装目录（不论从 standalone 切走还是切到 standalone，
-        // npm 路径已经安装了新 CLI，standalone 残留会干扰源检测）
-        for sa_dir in all_standalone_dirs() {
-            if sa_dir.exists() {
-                let _ = app.emit(
-                    "upgrade-log",
-                    format!("清理 standalone 残留: {}", sa_dir.display()),
-                );
-
-                // Windows: 终止占用该目录的 node.exe 进程
-                // 使用 PowerShell Get-Process（兼容 Windows 11，wmic 已废弃）
-                #[cfg(target_os = "windows")]
-                {
-                    let dir_lower = sa_dir
-                        .to_string_lossy()
-                        .to_lowercase()
-                        .replace('\\', "\\\\");
-                    let ps_script = format!(
-                        "Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -and $_.Path.ToLower().Contains('{}') }} | Select-Object -ExpandProperty Id",
-                        dir_lower
-                    );
-                    if let Ok(output) = Command::new("powershell")
-                        .args(["-NoProfile", "-Command", &ps_script])
-                        .output()
-                    {
-                        let text = String::from_utf8_lossy(&output.stdout);
-                        for line in text.lines() {
-                            if let Ok(pid) = line.trim().parse::<u32>() {
-                                let _ =
-                                    app.emit("upgrade-log", format!("终止占用进程 PID {pid}..."));
-                                let _ = Command::new("taskkill")
-                                    .args(["/F", "/PID", &pid.to_string()])
-                                    .output();
-                            }
-                        }
-                    }
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                }
-
-                match std::fs::remove_dir_all(&sa_dir) {
-                    Ok(()) => {
-                        let _ = app.emit("upgrade-log", "standalone 残留已清理 ✓");
-                    }
-                    Err(_) => {
-                        let _ = app.emit("upgrade-log", "文件被占用，等待后重试...");
-                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                        if let Err(e) = std::fs::remove_dir_all(&sa_dir) {
-                            let _ = app.emit(
-                                "upgrade-log",
-                                format!(
-                                    "⚠️ 清理 standalone 残留失败: {e}（可手动删除 {}）",
-                                    sa_dir.display()
-                                ),
-                            );
-                        } else {
-                            let _ = app.emit("upgrade-log", "standalone 残留已清理（重试成功）✓");
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if need_uninstall_old {
-        let _ = app.emit(
-            "upgrade-log",
-            "正在修复 npm CLI 入口（避免旧包卸载删除 openclaw.cmd）...",
-        );
-        let mut repair_cmd = npm_command_elevated();
-        repair_cmd.args(["install", "-g", &pkg, "--force", "--registry", registry]);
-        apply_git_install_env(&mut repair_cmd);
-        match repair_cmd
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .output()
-        {
-            Ok(o) if o.status.success() => {
-                let _ = app.emit("upgrade-log", "npm CLI 入口已确认");
-            }
-            Ok(o) => {
-                let stderr = String::from_utf8_lossy(&o.stderr);
-                return Err(format!(
-                    "安装完成但修复 npm CLI 入口失败: {}",
-                    stderr.trim()
-                ));
-            }
-            Err(e) => return Err(format!("安装完成但修复 npm CLI 入口失败: {e}")),
-        }
-    }
-
+    // ── 安装后校验 & 官方源重试（runtime 依赖不完整） ──
     super::refresh_enhanced_path();
     crate::commands::service::invalidate_cli_detection_cache();
 
@@ -5505,14 +5425,11 @@ async fn upgrade_openclaw_inner(
                 "镜像源安装完整性校验失败（{runtime_error}），正在切换到 npm 官方源重新安装..."
             ),
         );
+        let official_registry = "https://registry.npmjs.org";
         let mut official_retry = npm_command_elevated();
         official_retry.args([
-            "install",
-            "-g",
-            &pkg,
-            "--force",
-            "--registry",
-            "https://registry.npmjs.org",
+            "install", "-g", &pkg,
+            "--registry", official_registry,
             "--verbose",
         ]);
         apply_git_install_env(&mut official_retry);
@@ -5522,6 +5439,9 @@ async fn upgrade_openclaw_inner(
             .output()
             .map_err(|e| format!("执行 npm 官方源重装失败: {e}"))?;
         if !output.status.success() {
+            if need_switch_pkg {
+                rollback_install(&app, old_pkg, old_pkg_version_for_rollback.as_deref(), registry).await;
+            }
             return Err(format!(
                 "npm 官方源重装失败: {}",
                 String::from_utf8_lossy(&output.stderr).trim()
@@ -5558,9 +5478,9 @@ async fn upgrade_openclaw_inner(
         format!("已切换当前 CLI: {} ({new_ver})", npm_cli.display()),
     );
 
-    // 切换源后重装 Gateway 服务
+    // ── 重装 Gateway 服务（更新启动路径指向新安装的二进制） ──
     // 便携模式跳过：不重装/不停止本机 Gateway 服务，避免在宿主机留下服务痕迹
-    if need_uninstall_old {
+    {
         let portable_mode = crate::commands::portable::portable_context().is_some();
         if portable_mode {
             let _ = app.emit(
@@ -5608,17 +5528,39 @@ async fn upgrade_openclaw_inner(
         }
     }
 
-    // #Compat-4: npm 首次安装场景下，前面 `if need_uninstall_old` 块被跳过，
-    // PATH 缓存和 CLI 检测缓存都是装 openclaw 之前的旧快照。必须在这里统一刷新一次，
-    // 否则前端 `check_installation`/`get_services_status` 拿到的仍是「CLI 未安装」
-    // —— 用户反馈「一键装完日志显示成功，但面板不识别，重启客户端才能用」。
-    // 切换源场景前面已刷过，这里重刷无害（几十 ms 扫描开销可接受）。
+    // #Compat-4: 统一刷新 PATH 缓存和 CLI 检测缓存，确保前端即时识别到安装结果
     super::refresh_enhanced_path();
     crate::commands::service::invalidate_cli_detection_cache();
 
     let msg = format!("✅ 安装完成，当前版本: {new_ver}");
     let _ = app.emit("upgrade-log", &msg);
     Ok(msg)
+}
+
+/// 跨包切换安装失败时，尝试恢复旧包
+async fn rollback_install(
+    app: &tauri::AppHandle,
+    old_pkg: &str,
+    old_version: Option<&str>,
+    registry: &str,
+) {
+    use tauri::Emitter;
+    let restore_spec = match old_version {
+        Some(ver) => format!("{old_pkg}@{ver}"),
+        None => old_pkg.to_string(),
+    };
+    let _ = app.emit("upgrade-log", format!("正在恢复旧包 {restore_spec}..."));
+    let mut restore_cmd = npm_command_elevated();
+    restore_cmd.args(["install", "-g", &restore_spec, "--registry", registry, "--verbose"]);
+    apply_git_install_env(&mut restore_cmd);
+    match restore_cmd.output() {
+        Ok(o) if o.status.success() => {
+            let _ = app.emit("upgrade-log", "✅ 旧包已恢复");
+        }
+        _ => {
+            let _ = app.emit("upgrade-log", "⚠️ 旧包恢复失败，请手动执行 npm install -g openclaw");
+        }
+    }
 }
 
 /// 卸载 OpenClaw（后台执行，通过 event 推送进度）
