@@ -349,6 +349,7 @@
   gap: var(--space-xs);
   border-bottom: 1px solid var(--border-primary);
   margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
 }
 
 .tab {
