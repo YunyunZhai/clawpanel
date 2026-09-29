@@ -141,6 +141,8 @@ pub fn run() {
             oneapi::oneapi_get_config,
             oneapi::oneapi_save_config,
             oneapi::oneapi_test_connection,
+            oneapi::oneapi_get_topup_info,
+            oneapi::oneapi_request_epay,
             site_api::check_site_announcements,
             // 设备密钥 + Gateway 握手
             device::create_connect_frame,

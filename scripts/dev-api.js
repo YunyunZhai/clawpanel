@@ -19812,6 +19812,55 @@ const handlers = {
       return { ok: false, latency_ms: Date.now() - started, error: String(e?.message || e) }
     }
   },
+
+  async oneapi_get_topup_info() {
+    const { url, username, password } = readOneapiCredentials()
+    const { cookie, userId } = await oneapiLogin(url, username, password)
+    const headers = { 'User-Agent': 'ClawPanel', Cookie: cookie }
+    if (userId !== null) headers['New-Api-User'] = String(userId)
+    const resp = await globalThis.fetch(`${url}/api/user/topup/info`, {
+      signal: AbortSignal.timeout(15000),
+      headers,
+    })
+    const text = await resp.text()
+    let body = null
+    try { body = text ? JSON.parse(text) : null } catch { body = null }
+    if (!resp.ok || (body && body.success === false)) {
+      const msg = body?.message || body?.error?.message || text?.slice(0, 200) || resp.statusText
+      throw new Error(`OneAPI 错误 (${resp.status}): ${msg}`)
+    }
+    return body?.data && typeof body.data === 'object' ? body.data : (body || {})
+  },
+
+  async oneapi_request_epay({ amount, payment_method } = {}) {
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error('充值金额无效')
+    if (!payment_method || typeof payment_method !== 'string') throw new Error('请选择支付方式')
+    const { url, username, password } = readOneapiCredentials()
+    const { cookie, userId } = await oneapiLogin(url, username, password)
+    const headers = { 'User-Agent': 'ClawPanel', Cookie: cookie, 'Content-Type': 'application/json' }
+    if (userId !== null) headers['New-Api-User'] = String(userId)
+    const resp = await globalThis.fetch(`${url}/api/user/pay`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(15000),
+      headers,
+      body: JSON.stringify({ amount, payment_method }),
+    })
+    const text = await resp.text()
+    let body = null
+    try { body = text ? JSON.parse(text) : null } catch { body = null }
+    if (!resp.ok || (body && body.message === 'error')) {
+      const msg = body?.data || body?.message || text?.slice(0, 200) || resp.statusText
+      throw new Error(String(msg))
+    }
+    const payUrl = (body?.url || '').toString()
+    const params = (body?.data && typeof body.data === 'object') ? body.data : {}
+    // 构建完整支付链接
+    const qs = Object.entries(params)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v ?? ''))}`)
+      .join('&')
+    const fullUrl = qs ? `${payUrl}?${qs}` : payUrl
+    return { pay_url: fullUrl }
+  },
 }
 
 // Hermes 配置合并辅助函数

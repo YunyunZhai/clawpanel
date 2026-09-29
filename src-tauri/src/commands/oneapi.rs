@@ -239,3 +239,94 @@ pub async fn oneapi_test_connection() -> Result<Value, String> {
         })),
     }
 }
+
+/// 获取充值方式与金额选项
+#[tauri::command]
+pub async fn oneapi_get_topup_info() -> Result<Value, String> {
+    let (url, username, password) =
+        read_oneapi_config().ok_or("请先在钱包页面配置 OneAPI 连接信息")?;
+    let client = build_client()?;
+    let (cookie, user_id) = oneapi_login(&client, &url, &username, &password).await?;
+
+    let mut req = client
+        .get(format!("{url}/api/user/topup/info"))
+        .header("Cookie", cookie);
+    if let Some(id) = user_id {
+        req = req.header("New-Api-User", id.to_string());
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("请求充值信息失败: {e}"))?;
+    let body: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析充值信息失败: {e}"))?;
+
+    let data = body.get("data").cloned().unwrap_or(body);
+    Ok(data)
+}
+
+/// 请求易支付充值，返回支付链接用于在 ClawPanel 内生成二维码
+#[tauri::command]
+pub async fn oneapi_request_epay(amount: i64, payment_method: String) -> Result<Value, String> {
+    let (url, username, password) =
+        read_oneapi_config().ok_or("请先在钱包页面配置 OneAPI 连接信息")?;
+    let client = build_client()?;
+    let (cookie, user_id) = oneapi_login(&client, &url, &username, &password).await?;
+
+    let mut req = client
+        .post(format!("{url}/api/user/pay"))
+        .header("Cookie", cookie)
+        .json(&json!({"amount": amount, "payment_method": payment_method}));
+    if let Some(id) = user_id {
+        req = req.header("New-Api-User", id.to_string());
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("支付请求失败: {e}"))?;
+    let body: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析支付响应失败: {e}"))?;
+
+    if body.get("message").and_then(|v| v.as_str()) == Some("error") {
+        let msg = body
+            .get("data")
+            .and_then(|v| v.as_str())
+            .unwrap_or("支付请求失败");
+        return Err(msg.to_string());
+    }
+
+    let pay_url = body
+        .get("url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let params = body.get("data").cloned().unwrap_or(json!({}));
+
+    // 用参数构建完整支付 URL（支持 GET 方式，微信/支付宝扫码可直接打开）
+    let mut full_url = pay_url.clone();
+    if let Some(obj) = params.as_object() {
+        let mut parts: Vec<String> = Vec::new();
+        for (k, v) in obj {
+            if let Some(s) = v.as_str() {
+                parts.push(format!(
+                    "{}={}",
+                    urlencoding::encode(k),
+                    urlencoding::encode(s)
+                ));
+            }
+        }
+        if !parts.is_empty() {
+            full_url = format!("{}?{}", pay_url, parts.join("&"));
+        }
+    }
+
+    Ok(json!({
+        "pay_url": full_url,
+    }))
+}

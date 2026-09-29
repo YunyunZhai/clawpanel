@@ -506,6 +506,8 @@ export const api = {
   oneapiSaveConfig: (config) => invoke('oneapi_save_config', { config }),
   oneapiGetBalance: () => invoke('oneapi_get_balance'),
   oneapiTestConnection: () => invoke('oneapi_test_connection'),
+  oneapiGetTopupInfo: () => invoke('oneapi_get_topup_info'),
+  oneapiRequestEpay: (amount, method) => invoke('oneapi_request_epay', { amount, payment_method: method }),
 
   // 备份管理
   listBackups: () => cachedInvoke('list_backups'),

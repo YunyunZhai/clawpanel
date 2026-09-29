@@ -153,7 +153,7 @@ function renderConfigured(body, config) {
           <button class="btn btn-secondary btn-sm" id="wallet-refresh">${icon('refresh-cw', 14)} ${t('wallet.refreshBalance')}</button>
         </span>
       </div>
-      <button class="btn btn-primary btn-sm" id="wallet-generate">${t('wallet.generateQR')}</button>
+      <button class="btn btn-primary btn-sm" id="wallet-recharge">${t('wallet.recharge')}</button>
       <div class="form-hint" style="margin-top:8px">${t('wallet.rechargeHint')}</div>
       <div class="form-hint" id="wallet-error" style="display:none;color:var(--error)"></div>
     </div>
@@ -165,7 +165,7 @@ function renderConfigured(body, config) {
     </div>
   `
 
-  body.querySelector('#wallet-generate').onclick = () => openTopupQr(config)
+  body.querySelector('#wallet-recharge').onclick = () => openRechargeModal(config)
   body.querySelector('#wallet-refresh').onclick = () => loadBalance(body, config)
   body.querySelector('#wallet-edit').onclick = () => renderConfigForm(body, config)
 }
@@ -195,23 +195,29 @@ async function loadBalance(body, config) {
   }
 }
 
-function openTopupQr(config) {
-  const topupUrl = `${config.url}/topup`
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(topupUrl)}`
-
+function openRechargeModal(config) {
   const overlay = document.createElement('div')
   overlay.className = 'modal-overlay'
+
+  // 默认金额选项（后端未配置时使用）
+  const DEFAULT_AMOUNTS = [10, 20, 50, 100, 200, 500]
+  // 默认支付方式
+  const DEFAULT_METHODS = [
+    { name: '支付宝', type: 'alipay', color: 'var(--primary)' },
+    { name: '微信', type: 'wxpay', color: 'var(--success)' },
+  ]
+
+  let topupInfo = null
+  let fetchingInfo = true
+
   overlay.innerHTML = `
-    <div class="modal" style="max-width:360px;text-align:center">
-      <div class="modal-title">${t('wallet.scanQR')}</div>
-      <div class="modal-content-body">
-        <img src="${qrSrc}" alt="QR" width="240" height="240"
-             style="background:#fff;border-radius:8px;padding:8px">
-        <div class="form-hint" style="margin-top:10px">${t('wallet.rechargeHint')}</div>
+    <div class="modal" style="max-width:400px">
+      <div class="modal-header">
+        <span class="modal-title">${t('wallet.recharge')}</span>
+        <button class="btn btn-sm modal-close-btn" style="border:none;background:none;cursor:pointer;font-size:18px">&times;</button>
       </div>
-      <div class="modal-actions" style="justify-content:center">
-        <button class="btn btn-secondary btn-sm" data-action="close">${t('common.close')}</button>
-        <a class="btn btn-primary btn-sm" href="${esc(topupUrl)}" target="_blank" rel="noopener">${t('wallet.openTopup')}</a>
+      <div class="modal-content-body" id="recharge-form-body">
+        <div style="text-align:center;padding:20px 0;color:var(--text-tertiary)">加载支付信息...</div>
       </div>
     </div>
   `
@@ -219,24 +225,141 @@ function openTopupQr(config) {
 
   const close = () => { stopPolling(); overlay.remove() }
   overlay.addEventListener('click', e => { if (e.target === overlay) close() })
-  overlay.querySelector('[data-action="close"]').onclick = close
+  overlay.querySelector('.modal-close-btn').onclick = close
 
-  // 支付在手机端完成，这里轮询余额直到到账
-  const body = _page?.querySelector('#wallet-body')
-  let baseline = null
-  const poll = async () => {
-    if (!_page || !_page.isConnected) { stopPolling(); return }
-    try {
-      const data = await api.oneapiGetBalance()
-      const current = Number(data.balance)
-      if (baseline == null) baseline = current
-      else if (current > baseline) {
-        close()
-        toast(t('wallet.rechargeSuccess'), 'success')
-        if (body) loadBalance(body, config)
-        return
+  const body = overlay.querySelector('#recharge-form-body')
+
+  // 并行加载配置和余额基线
+  Promise.all([
+    api.oneapiGetTopupInfo().catch(() => null),
+    api.oneapiGetBalance().catch(() => null),
+  ]).then(([_info, _balance]) => {
+    topupInfo = _info
+    fetchingInfo = false
+
+    const amounts = (topupInfo?.amount_options && topupInfo.amount_options.length)
+      ? topupInfo.amount_options
+      : DEFAULT_AMOUNTS
+
+    const payMethods = (topupInfo?.pay_methods && topupInfo.pay_methods.length)
+      ? topupInfo.pay_methods
+      : DEFAULT_METHODS
+
+    const onlineEnabled = topupInfo?.enable_online_topup === true
+
+    if (!onlineEnabled) {
+      body.innerHTML = `
+        <div style="text-align:center;padding:20px 0;color:var(--text-tertiary)">
+          <p style="margin-bottom:12px">管理员尚未配置支付渠道</p>
+          <p style="font-size:var(--font-size-xs)">请前往 OneAPI 管理后台设置易支付 (Epay) 参数</p>
+        </div>
+      `
+      return
+    }
+
+    let selectedAmount = amounts[0]
+    let selectedMethod = payMethods[0]?.type || 'alipay'
+
+    const step1Html = `
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:var(--font-size-xs);color:var(--text-tertiary);margin-bottom:6px">充值金额</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px" id="amount-options">
+          ${amounts.map((a, i) => `
+            <button class="btn btn-sm ${i === 0 ? 'btn-primary' : 'btn-secondary'}" data-amount="${a}">${a} USD</button>
+          `).join('')}
+        </div>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:var(--font-size-xs);color:var(--text-tertiary);margin-bottom:6px">支付方式</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px" id="pay-methods">
+          ${payMethods.map((m, i) => `
+            <button class="btn btn-sm ${i === 0 ? 'btn-primary' : 'btn-secondary'}" data-method="${esc(m.type)}"
+                    style="${m.color ? `--btn-bg:${m.color};--btn-border:${m.color}` : ''}">${esc(m.name)}</button>
+          `).join('')}
+        </div>
+      </div>
+      <div id="pay-error" style="color:var(--error);font-size:var(--font-size-xs);margin-bottom:12px;display:none"></div>
+      <button class="btn btn-primary" id="btn-pay" style="width:100%">生成支付二维码</button>
+      <div id="qr-container" style="text-align:center;margin-top:16px;display:none"></div>
+    `
+
+    body.innerHTML = step1Html
+
+    // 金额选择
+    body.querySelector('#amount-options').addEventListener('click', e => {
+      const btn = e.target.closest('[data-amount]')
+      if (!btn) return
+      selectedAmount = Number(btn.dataset.amount)
+      body.querySelectorAll('#amount-options button').forEach(b => {
+        b.className = `btn btn-sm ${Number(b.dataset.amount) === selectedAmount ? 'btn-primary' : 'btn-secondary'}`
+      })
+    })
+
+    // 支付方式选择
+    body.querySelector('#pay-methods').addEventListener('click', e => {
+      const btn = e.target.closest('[data-method]')
+      if (!btn) return
+      selectedMethod = btn.dataset.method
+      body.querySelectorAll('#pay-methods button').forEach(b => {
+        b.className = `btn btn-sm ${b.dataset.method === selectedMethod ? 'btn-primary' : 'btn-secondary'}`
+      })
+    })
+
+    // 生成支付二维码
+    const errorEl = body.querySelector('#pay-error')
+    const qrContainer = body.querySelector('#qr-container')
+    body.querySelector('#btn-pay').onclick = async () => {
+      errorEl.style.display = 'none'
+      qrContainer.style.display = 'none'
+      qrContainer.innerHTML = ''
+
+      try {
+        const result = await api.oneapiRequestEpay(selectedAmount, selectedMethod)
+        const payUrl = result?.pay_url
+        if (!payUrl) throw new Error('未获取到支付链接')
+
+        const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=${encodeURIComponent(payUrl)}`
+        qrContainer.innerHTML = `
+          <div style="margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:8px">
+            <img src="${qrSrc}" alt="支付二维码" width="280" height="280"
+                 style="background:#fff;border-radius:8px;padding:8px;display:block;margin:0 auto">
+            <p style="margin-top:10px;font-size:var(--font-size-xs);color:var(--text-tertiary)">
+              请使用手机扫码完成支付，支付成功后余额将自动更新
+            </p>
+          </div>
+        `
+        qrContainer.style.display = ''
+
+        // 开始轮询余额
+        pollBalanceUntilPaid(overlay, config)
+      } catch (e) {
+        errorEl.textContent = String(e?.message || e)
+        errorEl.style.display = ''
       }
-    } catch {}
+    }
+  })
+
+  // 轮询余额
+  function pollBalanceUntilPaid(overlayEl, cfg) {
+    let baseline = null
+    stopPolling()
+    const poll = async () => {
+      if (!_page || !_page.isConnected) { stopPolling(); return }
+      try {
+        const data = await api.oneapiGetBalance()
+        const current = Number(data.balance)
+        if (baseline == null) { baseline = current; return }
+        if (current > baseline) {
+          close()
+          toast(t('wallet.rechargeSuccess'), 'success')
+          const walletBody = _page?.querySelector('#wallet-body')
+          if (walletBody) loadBalance(walletBody, cfg)
+          return
+        }
+      } catch {}
+    }
+    // 首次调用建立基线
+    poll()
+    _pollTimer = setInterval(poll, POLL_INTERVAL_MS)
   }
-  _pollTimer = setInterval(poll, POLL_INTERVAL_MS)
 }
