@@ -153,7 +153,8 @@
     "about": "关于",
     "glossary": "术语",
     "notifications": "推送通知",
-    "setup": "初始设置"
+    "setup": "初始设置",
+    "wallet": "钱包"
   },
   "instance": {
     "local": "本机",
@@ -5739,5 +5740,32 @@
     "loopbackDesc": "OpenCode 只监听 127.0.0.1，并启用随机服务密码。Web 版通过短期专用令牌和沙箱代理内嵌界面，不公开 OpenCode 端口，也不会向上游转发面板 Cookie。",
     "providers": "Provider 列表",
     "loadFailed": "读取 OpenCode 状态失败"
+  },
+  "wallet": {
+    "title": "钱包",
+    "desc": "查看 API 余额并扫码充值",
+    "balance": "当前余额",
+    "usedQuota": "已用额度",
+    "account": "账号",
+    "recharge": "充值",
+    "generateQR": "生成充值二维码",
+    "rechargeHint": "扫码后在手机端登录并选择金额充值",
+    "scanQR": "请用手机扫码充值",
+    "openTopup": "打开充值页",
+    "rechargeSuccess": "充值到账",
+    "refreshBalance": "刷新余额",
+    "oneapiConfig": "OneAPI 连接",
+    "oneapiUrl": "OneAPI 地址",
+    "oneapiUrlHint": "云端 OneAPI 服务地址，如 https://api.example.com",
+    "oneapiUsername": "登录账号",
+    "oneapiUsernameHint": "预置的 OneAPI 登录账号，用于查询余额",
+    "oneapiPassword": "登录密码",
+    "oneapiPasswordHint": "该账号的密码，仅保存在本机",
+    "saveConfig": "保存配置",
+    "editConfig": "修改配置",
+    "testConnection": "测试连接",
+    "connectionOK": "连接正常",
+    "connectionFailed": "连接失败",
+    "configRequired": "请先填写 OneAPI 地址、账号和密码"
   }
 }

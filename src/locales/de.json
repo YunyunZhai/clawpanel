@@ -153,7 +153,8 @@
     "about": "Über",
     "glossary": "Glossar",
     "notifications": "Push",
-    "setup": "Ersteinrichtung"
+    "setup": "Ersteinrichtung",
+    "wallet": "Geldbörse"
   },
   "instance": {
     "local": "Lokal",
@@ -5739,5 +5740,32 @@
     "loopbackDesc": "OpenCode listens only on 127.0.0.1 and uses a random service password. Web deployments embed it through a sandboxed proxy with a short-lived capability; the OpenCode port stays private and panel cookies are not forwarded upstream.",
     "providers": "Provider List",
     "loadFailed": "Failed to read OpenCode status"
+  },
+  "wallet": {
+    "title": "Geldbörse",
+    "desc": "API-Guthaben ansehen und per QR aufladen",
+    "balance": "Aktueller Saldo",
+    "usedQuota": "Verbrauchtes Guthaben",
+    "account": "Konto",
+    "recharge": "Aufladen",
+    "generateQR": "Auflade-QR erstellen",
+    "rechargeHint": "Nach dem Scannen am Telefon anmelden und Betrag wählen",
+    "scanQR": "Zum Aufladen scannen",
+    "openTopup": "Aufladeseite öffnen",
+    "rechargeSuccess": "Aufladung gutgeschrieben",
+    "refreshBalance": "Saldo aktualisieren",
+    "oneapiConfig": "OneAPI-Verbindung",
+    "oneapiUrl": "OneAPI-Adresse",
+    "oneapiUrlHint": "Adresse des OneAPI-Servers",
+    "oneapiUsername": "Benutzername",
+    "oneapiUsernameHint": "Vorinstallierter OneAPI-Benutzername zum Lesen des Guthabens",
+    "oneapiPassword": "Passwort",
+    "oneapiPasswordHint": "Kontopasswort, nur lokal gespeichert",
+    "saveConfig": "Speichern",
+    "editConfig": "Bearbeiten",
+    "testConnection": "Verbindung testen",
+    "connectionOK": "Verbindung OK",
+    "connectionFailed": "Verbindung fehlgeschlagen",
+    "configRequired": "Bitte zuerst OneAPI-Adresse, Benutzername und Passwort eingeben"
   }
 }

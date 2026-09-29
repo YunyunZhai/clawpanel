@@ -41,4 +41,5 @@ export default {
   glossary: _('术语', 'Glossary', '術語', '用語', '용어', 'Thuật ngữ', 'Glosario', 'Glossário', 'Глоссарий', 'Glossaire', 'Glossar'),
   notifications: _('推送通知', 'Push', '推送通知', 'プッシュ', '푸시', 'Đẩy', 'Push', 'Push', 'Push', 'Push', 'Push'),
   setup: _('初始设置', 'Setup', '初始設定', '初期設定', '초기 설정', 'Thiết lập', 'Configuración inicial', 'Configuração inicial', 'Начальная настройка', 'Configuration initiale', 'Ersteinrichtung'),
+  wallet: _('钱包', 'Wallet', '錢包', 'ウォレット', '지갑', 'Ví', 'Cartera', 'Carteira', 'Кошелёк', 'Portefeuille', 'Geldbörse'),
 }

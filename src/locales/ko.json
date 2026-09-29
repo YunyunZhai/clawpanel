@@ -153,7 +153,8 @@
     "about": "정보",
     "glossary": "용어",
     "notifications": "푸시",
-    "setup": "초기 설정"
+    "setup": "초기 설정",
+    "wallet": "지갑"
   },
   "instance": {
     "local": "로컬",
@@ -5739,5 +5740,32 @@
     "loopbackDesc": "OpenCode listens only on 127.0.0.1 and uses a random service password. Web deployments embed it through a sandboxed proxy with a short-lived capability; the OpenCode port stays private and panel cookies are not forwarded upstream.",
     "providers": "Provider List",
     "loadFailed": "Failed to read OpenCode status"
+  },
+  "wallet": {
+    "title": "지갑",
+    "desc": "API 잔액 확인 및 QR 코드로 충전",
+    "balance": "현재 잔액",
+    "usedQuota": "사용한额度",
+    "account": "계정",
+    "recharge": "충전",
+    "generateQR": "충전 QR 코드 생성",
+    "rechargeHint": "스캔 후 휴대폰에서 로그인하고 금액을 선택하세요",
+    "scanQR": "휴대폰으로 QR 코드를 스캔하여 충전",
+    "openTopup": "충전 페이지 열기",
+    "rechargeSuccess": "충전 완료",
+    "refreshBalance": "잔액 새로고침",
+    "oneapiConfig": "OneAPI 연결",
+    "oneapiUrl": "OneAPI 주소",
+    "oneapiUrlHint": "클라우드 OneAPI 서버 주소",
+    "oneapiUsername": "로그인 아이디",
+    "oneapiUsernameHint": "잔액 조회용 사전 설정 OneAPI 아이디",
+    "oneapiPassword": "로그인 비밀번호",
+    "oneapiPasswordHint": "이 계정의 비밀번호, 로컬에만 저장됨",
+    "saveConfig": "설정 저장",
+    "editConfig": "설정 편집",
+    "testConnection": "연결 테스트",
+    "connectionOK": "연결 정상",
+    "connectionFailed": "연결 실패",
+    "configRequired": "먼저 OneAPI 주소, 아이디, 비밀번호를 입력하세요"
   }
 }

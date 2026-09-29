@@ -500,6 +500,12 @@ export const api = {
   checkSiteAnnouncements: (locale) => invoke('check_site_announcements', { locale: normalizeSiteLocale(locale) }),
   writeEnvFile: (path, config) => invoke('write_env_file', { path, config }),
 
+  // OneAPI 钱包（余额 / 充值 / 连接配置）
+  oneapiGetConfig: () => invoke('oneapi_get_config'),
+  oneapiSaveConfig: (config) => invoke('oneapi_save_config', { config }),
+  oneapiGetBalance: () => invoke('oneapi_get_balance'),
+  oneapiTestConnection: () => invoke('oneapi_test_connection'),
+
   // 备份管理
   listBackups: () => cachedInvoke('list_backups'),
   createBackup: () => { invalidate('list_backups'); return invoke('create_backup') },

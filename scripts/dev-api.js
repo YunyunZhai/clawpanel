@@ -12862,6 +12862,123 @@ export function _handleOpenCodeUpgrade(req, socket, head) {
   return true
 }
 
+// ===========================================================================
+// OneAPI 钱包辅助函数
+// ===========================================================================
+
+// OneAPI / New API 默认计价单位（1 美元 = 500000 额度）
+const DEFAULT_QUOTA_PER_UNIT = 500000
+
+function readOneapiCredentials() {
+  const cfg = readPanelConfig()
+  const section = cfg.oneapi && typeof cfg.oneapi === 'object' && !Array.isArray(cfg.oneapi) ? cfg.oneapi : {}
+  const url = String(section.url || '').trim().replace(/\/+$/, '')
+  const username = String(section.username || '').trim()
+  const password = String(section.password || '')
+  if (!url || !username || !password) throw new Error('请先在钱包页面配置 OneAPI 连接信息')
+  if (!/^https?:\/\//i.test(url)) throw new Error('OneAPI 地址必须以 http:// 或 https:// 开头')
+  return { url, username, password }
+}
+
+// 提取会话 Cookie（gin sessions 默认名为 session）
+function extractSessionCookie(resp) {
+  const list = typeof resp.headers.getSetCookie === 'function'
+    ? resp.headers.getSetCookie()
+    : [resp.headers.get('set-cookie')].filter(Boolean)
+  for (const item of list) {
+    const pair = String(item).split(';')[0].trim()
+    if (pair.startsWith('session=')) return pair
+  }
+  return ''
+}
+
+async function oneapiLogin(baseUrl, username, password) {
+  let resp
+  try {
+    resp = await globalThis.fetch(`${baseUrl}/api/user/login`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'ClawPanel', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+  } catch (e) {
+    throw new Error(`OneAPI 登录请求失败: ${String(e?.message || e)}`)
+  }
+  const cookie = extractSessionCookie(resp)
+  const text = await resp.text()
+  let body = null
+  try { body = text ? JSON.parse(text) : null } catch { body = null }
+  if (body && body.success === false) {
+    throw new Error(`OneAPI 登录失败: ${body.message || '用户名或密码错误'}`)
+  }
+  if (!resp.ok) {
+    throw new Error(`OneAPI 登录失败 (${resp.status}): ${text?.slice(0, 200) || resp.statusText}`)
+  }
+  if (!cookie) throw new Error('OneAPI 登录失败：服务器未返回会话')
+  const data = body?.data && typeof body.data === 'object' ? body.data : {}
+  if (data.require_2fa === true) throw new Error('该账号启用了两步验证，无法在面板中自动查询余额')
+  const userId = Number(data.id)
+  return { cookie, userId: Number.isFinite(userId) ? userId : null }
+}
+
+async function fetchOneapiQuotaConfig(baseUrl) {
+  try {
+    const resp = await globalThis.fetch(`${baseUrl}/api/status`, {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'ClawPanel' },
+    })
+    const body = await resp.json()
+    const data = body?.data && typeof body.data === 'object' ? body.data : (body || {})
+    const perUnit = Number(data.quota_per_unit)
+    return {
+      quotaPerUnit: Number.isFinite(perUnit) && perUnit > 0 ? perUnit : DEFAULT_QUOTA_PER_UNIT,
+      displayInCurrency: data.display_in_currency !== false,
+    }
+  } catch {
+    return { quotaPerUnit: DEFAULT_QUOTA_PER_UNIT, displayInCurrency: true }
+  }
+}
+
+async function oneapiFetchSelf(baseUrl, username, password) {
+  const { cookie, userId } = await oneapiLogin(baseUrl, username, password)
+  const headers = { 'User-Agent': 'ClawPanel', Cookie: cookie }
+  // New API 用会话访问用户接口时仍要求 New-Api-User；OneAPI 会忽略该头
+  if (userId !== null) headers['New-Api-User'] = String(userId)
+  const resp = await globalThis.fetch(`${baseUrl}/api/user/self`, {
+    signal: AbortSignal.timeout(15000),
+    headers,
+  })
+  const text = await resp.text()
+  let body = null
+  try { body = text ? JSON.parse(text) : null } catch { body = null }
+  if (!resp.ok || (body && body.success === false)) {
+    const message = body?.message || body?.error?.message || text?.slice(0, 200) || resp.statusText
+    throw new Error(`OneAPI 返回错误 (${resp.status}): ${message}`)
+  }
+  return body?.data && typeof body.data === 'object' ? body.data : (body || {})
+}
+
+// 与 OneAPI 官方面板 renderQuota 语义一致：开启货币展示时按 quota_per_unit 换算
+function renderOneapiQuota(quota, quotaPerUnit, displayInCurrency) {
+  if (displayInCurrency && quotaPerUnit > 0) return Math.round((quota / quotaPerUnit) * 100) / 100
+  return Math.round(quota)
+}
+
+function normalizeOneapiSelf(data, quotaPerUnit, displayInCurrency) {
+  const num = (value) => {
+    const n = typeof value === 'string' ? Number(value) : value
+    return typeof n === 'number' && Number.isFinite(n) ? n : 0
+  }
+  return {
+    balance: renderOneapiQuota(num(data.quota), quotaPerUnit, displayInCurrency),
+    used_quota: renderOneapiQuota(num(data.used_quota), quotaPerUnit, displayInCurrency),
+    display_in_currency: displayInCurrency,
+    username: data.username || '',
+    email: data.email || '',
+    group: data.group || '',
+  }
+}
+
 const handlers = {
   // 配置读写
   read_openclaw_config() {
@@ -19647,6 +19764,53 @@ const handlers = {
   },
   skills_validate() {
     throw new Error('Web 模式暂未实现 Skills 校验，请使用桌面客户端')
+  },
+
+  // =========================================================================
+  // OneAPI 钱包（余额 / 充值 / 连接配置）
+  // =========================================================================
+
+  oneapi_get_config() {
+    const cfg = readPanelConfig()
+    return cfg.oneapi && typeof cfg.oneapi === 'object' && !Array.isArray(cfg.oneapi)
+      ? cfg.oneapi
+      : { url: '', username: '', password: '' }
+  },
+
+  oneapi_save_config({ config } = {}) {
+    const cfg = readPanelConfig()
+    const src = config && typeof config === 'object' && !Array.isArray(config) ? config : {}
+    const str = value => (typeof value === 'string' ? value : '')
+    cfg.oneapi = {
+      url: str(src.url).trim().replace(/\/+$/, ''),
+      username: str(src.username).trim(),
+      password: str(src.password),
+    }
+    writePanelConfigFile(cfg)
+    return true
+  },
+
+  async oneapi_get_balance() {
+    const { url, username, password } = readOneapiCredentials()
+    const data = await oneapiFetchSelf(url, username, password)
+    const { quotaPerUnit, displayInCurrency } = await fetchOneapiQuotaConfig(url)
+    return normalizeOneapiSelf(data, quotaPerUnit, displayInCurrency)
+  },
+
+  async oneapi_test_connection() {
+    const started = Date.now()
+    try {
+      const { url, username, password } = readOneapiCredentials()
+      const data = await oneapiFetchSelf(url, username, password)
+      return {
+        ok: true,
+        latency_ms: Date.now() - started,
+        email: data.email || '',
+        username: data.username || '',
+      }
+    } catch (e) {
+      return { ok: false, latency_ms: Date.now() - started, error: String(e?.message || e) }
+    }
   },
 }
 

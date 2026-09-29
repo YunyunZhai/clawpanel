@@ -153,7 +153,8 @@
     "about": "Sobre",
     "glossary": "Glossário",
     "notifications": "Push",
-    "setup": "Configuração inicial"
+    "setup": "Configuração inicial",
+    "wallet": "Carteira"
   },
   "instance": {
     "local": "Local",
@@ -5739,5 +5740,32 @@
     "loopbackDesc": "OpenCode listens only on 127.0.0.1 and uses a random service password. Web deployments embed it through a sandboxed proxy with a short-lived capability; the OpenCode port stays private and panel cookies are not forwarded upstream.",
     "providers": "Provider List",
     "loadFailed": "Failed to read OpenCode status"
+  },
+  "wallet": {
+    "title": "Carteira",
+    "desc": "Ver saldo da API e recarregar por QR",
+    "balance": "Saldo atual",
+    "usedQuota": "Cotação usada",
+    "account": "Conta",
+    "recharge": "Recarregar",
+    "generateQR": "Gerar QR de recarga",
+    "rechargeHint": "Faça login no telefone após escanear e escolha um valor",
+    "scanQR": "Escaneie para recarregar",
+    "openTopup": "Abrir página de recarga",
+    "rechargeSuccess": "Recarga concluída",
+    "refreshBalance": "Atualizar saldo",
+    "oneapiConfig": "Conexão OneAPI",
+    "oneapiUrl": "URL do OneAPI",
+    "oneapiUrlHint": "Endereço do servidor OneAPI",
+    "oneapiUsername": "Usuário",
+    "oneapiUsernameHint": "Usuário OneAPI pré-configurado, usado para consultar o saldo",
+    "oneapiPassword": "Senha",
+    "oneapiPasswordHint": "Senha da conta, salva apenas neste dispositivo",
+    "saveConfig": "Salvar configuração",
+    "editConfig": "Editar configuração",
+    "testConnection": "Testar conexão",
+    "connectionOK": "Conexão OK",
+    "connectionFailed": "Falha na conexão",
+    "configRequired": "Informe a URL, o usuário e a senha do OneAPI"
   }
 }
