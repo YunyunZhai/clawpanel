@@ -2942,11 +2942,7 @@
   "logs": {
     "title": "Nhật ký",
     "desc": "Xem nhật ký dịch vụ OpenClaw",
-    "tabGateway": "Gateway",
-    "tabGatewayErr": "Lỗi Gateway",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Sao lưu",
-    "tabAudit": "Kiểm toán",
+    "noFiles": "Không có tệp nhật ký",
     "searchPlaceholder": "Tìm kiếm...",
     "refresh": "Làm mới",
     "autoScroll": "Tự động cuộn",

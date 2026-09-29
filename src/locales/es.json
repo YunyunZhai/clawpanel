@@ -2942,11 +2942,7 @@
   "logs": {
     "title": "Registros",
     "desc": "Ver registros del servicio OpenClaw",
-    "tabGateway": "Gateway",
-    "tabGatewayErr": "Errores Gateway",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Respaldo",
-    "tabAudit": "Auditoría",
+    "noFiles": "Sin archivos de registro",
     "searchPlaceholder": "Buscar...",
     "refresh": "Actualizar",
     "autoScroll": "Auto-desplazar",

@@ -2942,11 +2942,7 @@
   "logs": {
     "title": "Protokolle",
     "desc": "OpenClaw-Protokolle anzeigen",
-    "tabGateway": "Gateway",
-    "tabGatewayErr": "Gateway-Fehler",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Backup",
-    "tabAudit": "Audit",
+    "noFiles": "Keine Protokolldateien",
     "searchPlaceholder": "Suchen...",
     "refresh": "Aktualisieren",
     "autoScroll": "Auto-Scrollen",

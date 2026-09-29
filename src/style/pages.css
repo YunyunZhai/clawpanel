@@ -332,6 +332,32 @@
   background: var(--bg-glass);
 }
 
+/* 日志文件 tab（内容来自后端扫描结果，数量不定） */
+.log-file-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 260px;
+  word-break: break-all;
+}
+
+.log-file-tab-meta {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.tab.active .log-file-tab-meta {
+  color: var(--accent-hover);
+}
+
+.log-empty-hint {
+  padding: var(--space-md) 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
 /* 配置项说明 */
 .form-hint {
   font-size: var(--font-size-xs);

@@ -393,6 +393,7 @@ export const api = {
   // 日志（短缓存）
   readLogTail: (logName, lines = 100) => cachedInvoke('read_log_tail', { logName, lines }, 5000),
   searchLog: (logName, query, maxResults = 50) => invoke('search_log', { logName, query, maxResults }),
+  listLogFiles: () => cachedInvoke('list_log_files', {}, 10000),
 
   // 记忆文件
   listMemoryFiles: (category, agentId) => cachedInvoke('list_memory_files', { category, agentId: agentId || null }),

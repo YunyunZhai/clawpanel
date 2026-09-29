@@ -2942,11 +2942,7 @@
   "logs": {
     "title": "로그",
     "desc": "OpenClaw 서비스 로그 보기",
-    "tabGateway": "Gateway 로그",
-    "tabGatewayErr": "Gateway 오류",
-    "tabGuardian": "가디언",
-    "tabBackup": "백업 로그",
-    "tabAudit": "감사 로그",
+    "noFiles": "로그 디렉터리가 비어 있습니다",
     "searchPlaceholder": "로그 검색...",
     "refresh": "새로고침",
     "autoScroll": "자동 스크롤",

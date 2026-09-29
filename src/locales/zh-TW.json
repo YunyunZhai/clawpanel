@@ -2942,11 +2942,7 @@
   "logs": {
     "title": "日誌查看",
     "desc": "查看 OpenClaw 各服務日誌",
-    "tabGateway": "Gateway 日誌",
-    "tabGatewayErr": "Gateway 錯誤",
-    "tabGuardian": "守护處理程序",
-    "tabBackup": "備份日誌",
-    "tabAudit": "審計日誌",
+    "noFiles": "日誌目錄為空或尚未建立",
     "searchPlaceholder": "搜尋日誌...",
     "refresh": "重新整理",
     "autoScroll": "自動滚動",

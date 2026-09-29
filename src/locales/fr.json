@@ -2942,11 +2942,7 @@
   "logs": {
     "title": "Journaux",
     "desc": "Voir les journaux OpenClaw",
-    "tabGateway": "Gateway",
-    "tabGatewayErr": "Erreurs Gateway",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Sauvegarde",
-    "tabAudit": "Audit",
+    "noFiles": "Aucun fichier journal",
     "searchPlaceholder": "Rechercher...",
     "refresh": "Actualiser",
     "autoScroll": "Défilement auto",

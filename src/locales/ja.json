@@ -2942,11 +2942,7 @@
   "logs": {
     "title": "ログ",
     "desc": "OpenClaw サービスログを表示",
-    "tabGateway": "Gateway ログ",
-    "tabGatewayErr": "Gateway エラー",
-    "tabGuardian": "ガーディアン",
-    "tabBackup": "バックアップログ",
-    "tabAudit": "監査ログ",
+    "noFiles": "ログディレクトリが空です",
     "searchPlaceholder": "ログを検索...",
     "refresh": "更新",
     "autoScroll": "自動スクロール",

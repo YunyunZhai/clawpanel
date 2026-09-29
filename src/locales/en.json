@@ -2942,11 +2942,7 @@
   "logs": {
     "title": "Logs",
     "desc": "View OpenClaw service logs",
-    "tabGateway": "Gateway Logs",
-    "tabGatewayErr": "Gateway Errors",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Backup Logs",
-    "tabAudit": "Audit Logs",
+    "noFiles": "No log files found",
     "searchPlaceholder": "Search logs...",
     "refresh": "Refresh",
     "autoScroll": "Auto scroll",
