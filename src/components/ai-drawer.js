@@ -5,11 +5,12 @@
  */
 
 import { t } from '../lib/i18n.js'
+import { HIDE_ASSISTANT } from '../lib/edition-flags.js'
 
 const BOT_ICON = '<svg viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect x="5" y="8" width="14" height="12" rx="2"/><path d="M9 13h0"/><path d="M15 13h0"/><path d="M10 17h4"/></svg>'
 
 const POS_KEY = 'clawpanel-fab-pos'
-const ENABLE_AI_FAB = true
+const ENABLE_AI_FAB = !HIDE_ASSISTANT
 
 // ── 页面上下文收集器注册表 ──
 const _contextProviders = {}
@@ -41,6 +42,8 @@ export function initAIFab() {
 
 /** 导航到 AI 助手并注入错误上下文（显示为可操作的 banner，而非自动发送） */
 export function openAIDrawerWithError(errorCtx) {
+  // 助手入口已隐藏时静默丢弃：调用方（安装/升级失败等）不需要感知
+  if (HIDE_ASSISTANT) return
   sessionStorage.setItem('assistant-error-context', JSON.stringify({
     scene: errorCtx.scene || '',
     title: errorCtx.title || t('common.operationFailed'),

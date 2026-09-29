@@ -1,10 +1,11 @@
 import { navigate } from '../router.js'
 import { t } from '../lib/i18n.js'
 import { applyEngineSelection } from '../lib/engine-manager.js'
+import { isEngineVisible } from '../lib/edition-flags.js'
 import { toast } from '../components/toast.js'
 import { humanizeError } from '../lib/humanize-error.js'
 
-const PRIMARY_OPTIONS = [
+const ALL_PRIMARY_OPTIONS = [
   {
     id: 'openclaw',
     activeEngineId: 'openclaw',
@@ -19,7 +20,7 @@ const PRIMARY_OPTIONS = [
   },
 ]
 
-const SECONDARY_OPTIONS = [
+const ALL_SECONDARY_OPTIONS = [
   {
     id: 'opencode',
     activeEngineId: 'opencode',
@@ -48,6 +49,16 @@ const SECONDARY_OPTIONS = [
   },
 ]
 
+/** 只保留完全由可见运行时组成的选项（便携版只剩 OpenClaw → 其它选项全部隐藏） */
+function isOptionVisible(option) {
+  if (option.deferred) return false
+  if (!isEngineVisible(option.activeEngineId)) return false
+  return (option.enabledEngineIds || []).every(isEngineVisible)
+}
+
+const PRIMARY_OPTIONS = ALL_PRIMARY_OPTIONS.filter(isOptionVisible)
+const SECONDARY_OPTIONS = ALL_SECONDARY_OPTIONS.filter(isOptionVisible)
+
 const ICONS = {
   openclaw: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
   hermes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
@@ -63,30 +74,24 @@ export async function render() {
   page.className = 'page engine-select-page es-monolith'
   page.innerHTML = `
     <div class="es-stage">
-      <div class="es-panel es-panel-openclaw" data-engine="openclaw">
-        <div class="es-glow es-glow-openclaw"></div>
-      </div>
-      <div class="es-panel es-panel-hermes" data-engine="hermes">
-        <div class="es-glow es-glow-hermes"></div>
-      </div>
-      <div class="es-divider"></div>
+      ${PRIMARY_OPTIONS.map(o => `
+        <div class="es-panel es-panel-${o.id}" data-engine="${o.id}">
+          <div class="es-glow es-glow-${o.id}"></div>
+        </div>`).join('')}
+      ${PRIMARY_OPTIONS.length > 1 ? '<div class="es-divider"></div>' : ''}
 
       <div class="es-top-banner">${esc(t('engine.choiceTopBanner'))}</div>
       <div class="es-corner-mark es-corner-tl">CLAWPANEL</div>
       <div class="es-corner-mark es-corner-br" data-version-tag>v—</div>
 
-      ${renderContent('openclaw')}
-      ${renderContent('hermes')}
+      ${PRIMARY_OPTIONS.map(o => renderContent(o.id)).join('')}
 
-      <div class="es-secondary">
-        <button type="button" class="es-secondary-link" data-secondary="opencode">${esc(t('engine.choiceSecondaryOpenCode'))}</button>
-        <span class="es-secondary-sep" aria-hidden="true">·</span>
-        <button type="button" class="es-secondary-link" data-secondary="deepseek-harness">${esc(t('engine.choiceSecondaryDsh'))}</button>
-        <span class="es-secondary-sep" aria-hidden="true">·</span>
-        <button type="button" class="es-secondary-link" data-secondary="both">${esc(t('engine.choiceSecondaryBoth'))}</button>
-        <span class="es-secondary-sep" aria-hidden="true">·</span>
-        <button type="button" class="es-secondary-link" data-secondary="later">${esc(t('engine.choiceSecondaryLater'))}</button>
-      </div>
+      ${SECONDARY_OPTIONS.length ? `
+        <div class="es-secondary">
+          ${SECONDARY_OPTIONS.map((o, i) => `
+            ${i ? '<span class="es-secondary-sep" aria-hidden="true">·</span>' : ''}
+            <button type="button" class="es-secondary-link" data-secondary="${o.id}">${esc(secondaryLabel(o.id))}</button>`).join('')}
+        </div>` : ''}
     </div>
   `
 
@@ -101,6 +106,17 @@ export async function render() {
   bindClick(page)
 
   return page
+}
+
+const SECONDARY_LABELS = {
+  opencode: () => t('engine.choiceSecondaryOpenCode'),
+  'deepseek-harness': () => t('engine.choiceSecondaryDsh'),
+  both: () => t('engine.choiceSecondaryBoth'),
+  later: () => t('engine.choiceSecondaryLater'),
+}
+
+function secondaryLabel(id) {
+  return SECONDARY_LABELS[id]?.() || id
 }
 
 function renderContent(id) {

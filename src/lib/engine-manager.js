@@ -3,6 +3,7 @@
  * 管理多引擎（OpenClaw / Hermes Agent / ...）的注册、切换和状态
  */
 import { api, invalidate } from './tauri-api.js'
+import { isEngineVisible } from './edition-flags.js'
 import { registerRoute, setDefaultRoute } from '../router.js'
 
 const _engines = {}
@@ -16,14 +17,16 @@ export function registerEngine(engine) {
   _engines[engine.id] = engine
 }
 
-/** 获取所有已注册引擎 */
+/** 获取所有已注册引擎（只返回界面可见的，被隐藏的运行时不出现在切换器里） */
 export function listEngines() {
-  return Object.values(_engines).map(e => ({
-    id: e.id,
-    name: e.name,
-    icon: e.icon || '',
-    description: e.description || '',
-  }))
+  return Object.values(_engines)
+    .filter(e => isEngineVisible(e.id))
+    .map(e => ({
+      id: e.id,
+      name: e.name,
+      icon: e.icon || '',
+      description: e.description || '',
+    }))
 }
 
 /** 获取当前激活的引擎 */
@@ -63,10 +66,16 @@ export async function initEngineManager() {
   let mode = 'openclaw'
   _engineSetupDeferred = false
   let hasChoice = false
+  // 只剩一个可见运行时（如便携版只内置 OpenClaw）时无需让用户选择：
+  // 直接锁定它，既跳过 /engine-select，也忽略历史配置里的其它 engineMode。
+  const visible = listEngines()
+  const soleVisible = visible.length === 1 ? visible[0].id : ''
   try {
     const cfg = await api.readPanelConfig()
     hasChoice = !!cfg?.engineSetupChoice
-    if (cfg?.engineMode === 'deferred') {
+    if (soleVisible) {
+      mode = soleVisible
+    } else if (cfg?.engineMode === 'deferred') {
       _engineSetupDeferred = true
     } else if (cfg?.engineMode === 'both') {
       mode = 'openclaw'
@@ -77,7 +86,7 @@ export async function initEngineManager() {
   // “是否需要走首次选择”仅取决于用户有没有真正点过 /engine-select 或引擎切换器；
   // 单纯有 engineMode 但没有 engineSetupChoice（旧版本/历史数据）依然视为未选择，
   // 这样 OpenClaw 没装好的情况下能走到选择页，而不是被默认拉到 /setup。
-  _needsInitialEngineChoice = !hasChoice
+  _needsInitialEngineChoice = soleVisible ? false : !hasChoice
   await activateEngine(mode, false)
 }
 

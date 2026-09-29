@@ -4,6 +4,7 @@ import { showConfirm } from '../components/modal.js'
 import { icon } from '../lib/icons.js'
 import { t } from '../lib/i18n.js'
 import { PROVIDER_PRESETS, API_TYPES } from '../lib/model-presets.js'
+import { HIDE_ASSISTANT, isEngineVisible } from '../lib/edition-flags.js'
 import {
   channelFingerprint,
   channelProviderKey,
@@ -43,16 +44,31 @@ function apiTypeLabel(value) {
   return API_TYPES.find(item => item.value === value)?.label || value
 }
 
+// 同步目标 key → 引擎 id（assistant 不是运行时，单独由 HIDE_ASSISTANT 控制）
+const SYNC_TARGET_ENGINE = {
+  openclaw: 'openclaw',
+  hermes: 'hermes',
+  dsh: 'deepseek-harness',
+  opencode: 'opencode',
+}
+
+/** 同步入口是否可见：便携版只留 OpenClaw，隐藏的运行时不出现在渠道绑定里 */
+function isSyncTargetVisible(target) {
+  if (target === 'assistant') return !HIDE_ASSISTANT
+  const engineId = SYNC_TARGET_ENGINE[target]
+  return engineId ? isEngineVisible(engineId) : true
+}
+
 // 编辑器内的内核适配性提示：该 API 类型能同步到哪些目标
 function renderCompatHint(apiType) {
   const fake = { apiType }
   const targets = [
-    { label: t('modelChannels.targetOpenclaw'), ok: true, hint: '' },
-    { label: t('modelChannels.targetHermes'), ok: hermesSyncSupported(fake), hint: t('modelChannels.syncHermesUnsupported') },
-    { label: t('modelChannels.targetDsh'), ok: dshSyncSupported(fake), hint: t('modelChannels.syncDshUnsupported') },
-    { label: t('modelChannels.targetOpenCode'), ok: openCodeSyncSupported(fake), hint: t('modelChannels.syncOpenCodeUnsupported') },
-    { label: t('modelChannels.targetAssistant'), ok: assistantSyncSupported(fake), hint: t('modelChannels.syncAssistantUnsupported') },
-  ]
+    { target: 'openclaw', label: t('modelChannels.targetOpenclaw'), ok: true, hint: '' },
+    { target: 'hermes', label: t('modelChannels.targetHermes'), ok: hermesSyncSupported(fake), hint: t('modelChannels.syncHermesUnsupported') },
+    { target: 'dsh', label: t('modelChannels.targetDsh'), ok: dshSyncSupported(fake), hint: t('modelChannels.syncDshUnsupported') },
+    { target: 'opencode', label: t('modelChannels.targetOpenCode'), ok: openCodeSyncSupported(fake), hint: t('modelChannels.syncOpenCodeUnsupported') },
+    { target: 'assistant', label: t('modelChannels.targetAssistant'), ok: assistantSyncSupported(fake), hint: t('modelChannels.syncAssistantUnsupported') },
+  ].filter(item => isSyncTargetVisible(item.target))
   const parts = targets.map(item => item.ok
     ? `<span style="color:var(--success)">✓ ${esc(item.label)}</span>`
     : `<span style="color:var(--text-tertiary)" title="${attr(item.hint)}">— ${esc(item.label)}</span>`)
@@ -213,11 +229,11 @@ function renderChannelCard(state, channel) {
       </div>
       <div class="mch-sync-row">
         <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);letter-spacing:0.3px">${t('modelChannels.bindings')}</div>
-        ${renderSyncLine(state, channel, 'openclaw', t('modelChannels.targetOpenclaw'), true, '', t('modelChannels.syncOpenclaw'))}
-        ${renderSyncLine(state, channel, 'hermes', t('modelChannels.targetHermes'), hermesSyncSupported(channel), t('modelChannels.syncHermesUnsupported'), t('modelChannels.syncHermes'))}
-        ${renderSyncLine(state, channel, 'dsh', t('modelChannels.targetDsh'), dshSyncSupported(channel), t('modelChannels.syncDshUnsupported'), t('modelChannels.syncDsh'))}
-        ${renderSyncLine(state, channel, 'opencode', t('modelChannels.targetOpenCode'), openCodeSyncSupported(channel), t('modelChannels.syncOpenCodeUnsupported'), t('modelChannels.syncOpenCode'))}
-        ${renderSyncLine(state, channel, 'assistant', t('modelChannels.targetAssistant'), assistantSyncSupported(channel), t('modelChannels.syncAssistantUnsupported'), t('modelChannels.syncAssistant'))}
+        ${isSyncTargetVisible('openclaw') ? renderSyncLine(state, channel, 'openclaw', t('modelChannels.targetOpenclaw'), true, '', t('modelChannels.syncOpenclaw')) : ''}
+        ${isSyncTargetVisible('hermes') ? renderSyncLine(state, channel, 'hermes', t('modelChannels.targetHermes'), hermesSyncSupported(channel), t('modelChannels.syncHermesUnsupported'), t('modelChannels.syncHermes')) : ''}
+        ${isSyncTargetVisible('dsh') ? renderSyncLine(state, channel, 'dsh', t('modelChannels.targetDsh'), dshSyncSupported(channel), t('modelChannels.syncDshUnsupported'), t('modelChannels.syncDsh')) : ''}
+        ${isSyncTargetVisible('opencode') ? renderSyncLine(state, channel, 'opencode', t('modelChannels.targetOpenCode'), openCodeSyncSupported(channel), t('modelChannels.syncOpenCodeUnsupported'), t('modelChannels.syncOpenCode')) : ''}
+        ${isSyncTargetVisible('assistant') ? renderSyncLine(state, channel, 'assistant', t('modelChannels.targetAssistant'), assistantSyncSupported(channel), t('modelChannels.syncAssistantUnsupported'), t('modelChannels.syncAssistant')) : ''}
       </div>
       <div class="mch-actions">
         <button class="btn btn-xs btn-secondary" type="button" data-action="edit" data-channel-id="${attr(channel.id)}">${icon('edit', 12)} ${t('common.edit')}</button>

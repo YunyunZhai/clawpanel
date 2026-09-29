@@ -5,6 +5,7 @@
 import { detectOpenclawStatus, isOpenclawReady, isGatewayRunning, isGatewayForeign,
          onGatewayChange, startGatewayPoll, stopGatewayPoll, onReadyChange } from '../../lib/app-state.js'
 import { initFeatureGates, isFeatureAvailable } from '../../lib/feature-gates.js'
+import { isRouteVisible } from '../../lib/edition-flags.js'
 import { t } from '../../lib/i18n.js'
 
 export default {
@@ -124,7 +125,7 @@ export default {
       { path: '/plugin-hub', loader: () => import('../../pages/plugin-hub.js') },
       { path: '/diagnose', loader: () => import('../../pages/chat-debug.js') },
       { path: '/glossary', loader: () => import('../../pages/glossary.js') },
-    ]
+    ].filter(r => isRouteVisible(r.path))
   },
 
   getSetupRoute() { return '/setup' },

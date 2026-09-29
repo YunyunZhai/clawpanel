@@ -7,6 +7,7 @@ import { showConfirm, showUpgradeModal } from '../components/modal.js'
 import { toast } from '../components/toast.js'
 import { setUpgrading, isMacPlatform } from '../lib/app-state.js'
 import { getActiveEngine } from '../lib/engine-manager.js'
+import { HIDE_ASSISTANT } from '../lib/edition-flags.js'
 import { diagnoseInstallError } from '../lib/error-diagnosis.js'
 import { icon, statusIcon } from '../lib/icons.js'
 import { t } from '../lib/i18n.js'
@@ -483,8 +484,9 @@ function renderSteps(page, { node, git, cliOk, config, version }) {
     </div>
   `
 
-  // AI 助手入口
-  html += `
+  // AI 助手入口（便携版隐藏）
+  if (!HIDE_ASSISTANT) {
+    html += `
     <div class="config-section" style="text-align:left">
       <div class="config-section-title" style="display:flex;align-items:center;gap:6px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
@@ -505,6 +507,7 @@ function renderSteps(page, { node, git, cliOk, config, version }) {
       </div>
     </div>
   `
+  }
 
   html += `
       </div>

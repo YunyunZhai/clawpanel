@@ -11,6 +11,7 @@
  */
 
 import { t } from '../lib/i18n.js'
+import { HIDE_ENGAGEMENT } from '../lib/edition-flags.js'
 
 const KEYS = {
   firstOpen: 'clawpanel_first_open',
@@ -63,6 +64,7 @@ let _showing = false
  * 满足条件才弹出，否则静默返回
  */
 export function tryShowEngagement() {
+  if (HIDE_ENGAGEMENT) return
   if (_showing || !_canShow()) return
   if (document.querySelector('.engage-overlay')) return
   _showing = true

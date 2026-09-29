@@ -19,6 +19,7 @@ import { toast } from './components/toast.js'
 import { initI18n, t, getLang, setLang, getAvailableLangs } from './lib/i18n.js'
 import { renderMarkdown } from './lib/markdown.js'
 import { initFeatureGates } from './lib/feature-gates.js'
+import { HIDE_ASSISTANT } from './lib/edition-flags.js'
 import { onKernelChange } from './lib/kernel.js'
 import { showFloorBlocker, hideFloorBlocker } from './components/floor-blocker.js'
 import { registerEngine, initEngineManager, getActiveEngine, getActiveEngineId, needsInitialEngineChoice, isEngineSetupDeferred, adoptActiveEngineSelection, onEngineChange } from './lib/engine-manager.js'
@@ -1308,8 +1309,9 @@ function startAnnouncementChecker() {
   startUpdateChecker()
   startAnnouncementChecker()
 
-  // 初始化全局 AI 助手浮动按钮（延迟加载，不阻塞启动）
+  // 初始化全局 AI 助手浮动按钮（延迟加载，不阻塞启动；助手入口隐藏时整段跳过）
   setTimeout(async () => {
+    if (HIDE_ASSISTANT) return
     const { initAIFab, registerPageContext, openAIDrawerWithError } = await import('./components/ai-drawer.js')
     initAIFab()
 

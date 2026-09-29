@@ -9,6 +9,7 @@ import { toast } from './toast.js'
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
 import { t, getLang, setLang, getAvailableLangs } from '../lib/i18n.js'
 import { isFeatureAvailable } from '../lib/feature-gates.js'
+import { isRouteVisible } from '../lib/edition-flags.js'
 import { getKernelSnapshot, recommendedIsNewer } from '../lib/kernel.js'
 import { triggerKernelUpgrade } from '../lib/kernel-upgrade.js'
 import { getActiveEngine, getActiveEngineId, listEngines, needsInitialEngineChoice, isEngineSetupDeferred, switchEngine, onEngineChange } from '../lib/engine-manager.js'
@@ -255,12 +256,19 @@ export function renderSidebar(el) {
   const navItems = withCommonNavItems(navItemsBase)
 
   for (const section of navItems) {
+    const sectionItems = section.items.filter(item => {
+      if (!isRouteVisible(item.route)) return false
+      if (item.gate && engine) return !!engine.isFeatureAvailable(item.gate)
+      if (item.gate) return !!isFeatureAvailable(item.gate)
+      return true
+    })
+    // 整个分区都被裁掉时不留空标题（例如隐藏助手后的 engine-select 分区）
+    if (!sectionItems.length) continue
+
     html += `<div class="nav-section">
       <div class="nav-section-title">${section.section}</div>`
 
-    for (const item of section.items) {
-      if (item.gate && engine && !engine.isFeatureAvailable(item.gate)) continue
-      if (item.gate && !engine && !isFeatureAvailable(item.gate)) continue
+    for (const item of sectionItems) {
       const active = current === item.route ? ' active' : ''
       html += `<div class="nav-item${active}" data-route="${item.route}">
         ${ICONS[item.icon] || ''}

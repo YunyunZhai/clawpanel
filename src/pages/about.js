@@ -9,6 +9,7 @@ import { setUpgrading } from '../lib/app-state.js'
 import { icon, statusIcon } from '../lib/icons.js'
 import { t, getLang } from '../lib/i18n.js'
 import { getActiveEngineId } from '../lib/engine-manager.js'
+import { HIDE_ABOUT_COMMUNITY } from '../lib/edition-flags.js'
 
 export async function render() {
   const page = document.createElement('div')
@@ -27,10 +28,11 @@ export async function render() {
       <div class="stat-card loading-placeholder"></div>
       <div class="stat-card loading-placeholder"></div>
     </div>
+    ${HIDE_ABOUT_COMMUNITY ? '' : `
     <div class="config-section">
       <div class="config-section-title">${t('about.sectionCommunity')}</div>
       <div id="community-section"></div>
-    </div>
+    </div>`}
     <div class="config-section">
       <div class="config-section-title">${t('about.sectionProjects')}</div>
       <div id="projects-list"></div>
@@ -64,11 +66,13 @@ export async function render() {
     loadData(page)
   }
 
-  // 社群二维码是 OpenClaw 专属渠道，对 xintian 用户不相关
-  if (activeEngineId === 'xintian') {
-    page.querySelector('#community-section')?.closest('.config-section')?.remove()
-  } else {
-    renderCommunity(page)
+  // 社群二维码是 OpenClaw 专属渠道，对 xintian 用户不相关；便携版整块隐藏
+  if (!HIDE_ABOUT_COMMUNITY) {
+    if (activeEngineId === 'xintian') {
+      page.querySelector('#community-section')?.closest('.config-section')?.remove()
+    } else {
+      renderCommunity(page)
+    }
   }
 
   renderProjects(page)

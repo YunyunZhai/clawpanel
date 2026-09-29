@@ -2,6 +2,7 @@
  * Hermes Agent 引擎
  */
 import { t } from '../../lib/i18n.js'
+import { isRouteVisible } from '../../lib/edition-flags.js'
 import { api, invalidate } from '../../lib/tauri-api.js'
 
 // Hermes 状态
@@ -136,7 +137,7 @@ export default {
       { path: '/settings', loader: () => import('../../pages/settings.js') },
       { path: '/about', loader: () => import('../../pages/about.js') },
       { path: '/glossary', loader: () => import('../../pages/glossary.js') },
-    ]
+    ].filter(r => isRouteVisible(r.path))
   },
 
   getSetupRoute() { return '/h/setup' },
