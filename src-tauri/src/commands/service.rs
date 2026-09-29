@@ -231,6 +231,19 @@ fn clear_gateway_owner() {
     let _ = std::fs::remove_file(gateway_owner_path());
 }
 
+/// 检查 owner 的 started_at 是否在最近 30s 内。
+/// 用于区分"正在启动中"（owner 刚写入，pid=None）和旧的残留记录。
+fn owner_started_recently(owner: &GatewayOwnerRecord) -> bool {
+    let start_time = match chrono::DateTime::parse_from_rfc3339(&owner.started_at) {
+        Ok(t) => t.with_timezone(&chrono::Local),
+        Err(_) => return false,
+    };
+    let elapsed = chrono::Local::now()
+        .signed_duration_since(start_time)
+        .num_seconds();
+    elapsed >= 0 && elapsed < 30
+}
+
 fn is_current_gateway_owner(owner: &GatewayOwnerRecord, _pid: Option<u32>) -> bool {
     matches_current_gateway_owner_signature(owner)
 }
@@ -866,7 +879,10 @@ async fn start_service_impl_internal_locked(
 ) -> Result<(), String> {
     match start_service_impl_internal_once(label).await {
         Ok(()) => Ok(()),
-        Err(err) => match try_auto_fix_gateway_config(&err, app).await {
+        Err(err) => {
+            // start_service_impl_internal_once 在失败时已清理 owner，
+            // 此处只需尝试自动修复后重试
+            match try_auto_fix_gateway_config(&err, app).await {
             Ok(true) => {
                 guardian_log("自动修复完成，准备重试启动 Gateway");
                 emit_guardian_event(
@@ -945,25 +961,36 @@ async fn start_service_impl_internal_locked(
             }
             Ok(false) => Err(err),
             Err(fix_err) => Err(format!("{err}\n{fix_err}")),
+            }
         },
     }
 }
 
 async fn start_service_impl_internal_once(label: &str) -> Result<(), String> {
     let error_log_offset = gateway_error_log_len();
-    #[cfg(target_os = "macos")]
-    {
-        if let Err(err) = platform::start_service_impl(label) {
-            return Err(append_gateway_error_excerpt(err, error_log_offset));
+    // 在 spawn 进程之前先写 owner 文件（pid=None），这样 get_services_status
+    // 可以在 Gateway 端口就绪前识别出"启动中"状态。wait_for_gateway_running
+    // 会在端口就绪后用真实 PID 覆盖。
+    let _ = write_gateway_owner(None);
+    let result = async {
+        #[cfg(target_os = "macos")]
+        {
+            platform::start_service_impl(label)
+                .map_err(|e| append_gateway_error_excerpt(e, error_log_offset))?;
         }
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        if let Err(err) = platform::start_service_impl(label).await {
-            return Err(append_gateway_error_excerpt(err, error_log_offset));
+        #[cfg(not(target_os = "macos"))]
+        {
+            platform::start_service_impl(label).await
+                .map_err(|e| append_gateway_error_excerpt(e, error_log_offset))?;
         }
+        wait_for_gateway_running(label, Duration::from_secs(15), error_log_offset).await
+    }.await;
+    // 启动失败时清理 owner，避免 pid=None 残留导致后续 getServicesStatus
+    // 误判为"仍在启动中"
+    if result.is_err() {
+        clear_gateway_owner();
     }
-    wait_for_gateway_running(label, Duration::from_secs(15), error_log_offset).await
+    result
 }
 
 async fn stop_service_impl_internal(label: &str) -> Result<(), String> {
@@ -2485,7 +2512,20 @@ pub async fn get_services_status() -> Result<Vec<ServiceStatus>, String> {
             let _ = write_gateway_owner(pid);
             owned_by_current_instance = true;
         }
-        let ownership = if !running {
+        // "启动中"判定：端口不通 + owner 文件存在且签名匹配 + pid=None + 30s内启动
+        let starting = !running
+            && owner
+                .as_ref()
+                .map(|r| {
+                    r.pid.is_none()
+                        && matches_current_gateway_owner_signature(r)
+                        && owner_started_recently(r)
+                })
+                .unwrap_or(false);
+
+        let ownership = if starting {
+            Some("starting".to_string())
+        } else if !running {
             Some("stopped".to_string())
         } else if owned_by_current_instance {
             Some("owned".to_string())
@@ -2496,6 +2536,7 @@ pub async fn get_services_status() -> Result<Vec<ServiceStatus>, String> {
             label: label.to_string(),
             pid,
             running,
+            starting,
             description: desc_map.get(label).unwrap_or(&"").to_string(),
             cli_installed,
             ownership,

@@ -93,6 +93,7 @@ export default {
   noLogs: _('暂无日志', 'No logs', '暫無日誌', 'ログなし', '로그 없음', 'Không có nhật ký', 'Sin registros', 'Sem logs', 'Нет записей', 'Aucun journal', 'Keine Protokolle'),
   openControlUIFail: _('打开 Control UI 失败', 'Failed to open Control UI', '開啟 Control UI 失敗', 'Control UI を開けませんでした', 'Control UI 열기 실패'),
   starting: _('启动中...', 'Starting...', '啟動中...', '起動中...', '시작 중...', 'Đang khởi động...', 'Iniciando...', 'Iniciando...', 'Запуск...', 'Démarrage...', 'Wird gestartet...'),
+  startingHint: _('Node 进程冷启动中，预计需数秒', 'Node process starting, may take a few seconds', 'Node 行程冷啟動中，預計需數秒', 'Node プロセス起動中、数秒かかります', 'Node 프로세스 시작 중, 몇 초 소요됨'),
   gwStartSent: _('Gateway 启动指令已发送', 'Gateway start command sent', 'Gateway 啟動指令已發送', 'Gateway 起動コマンド送信済み', 'Gateway 시작 명령 전송됨'),
   startFail: _('启动失败', 'Start failed', '啟動失敗', '起動失敗', '시작 실패'),
   stopping: _('停止中...', 'Stopping...', '', '停止中...', '중지 중...', 'Đang dừng...', 'Deteniendo...', 'Parando...', 'Остановка...', 'Arrêt...', 'Wird gestoppt...'),

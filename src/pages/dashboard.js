@@ -459,10 +459,10 @@ function renderStatCards(page, services, version, agents, config, panelConfig) {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-label">${t('dashboard.gateway')}</span>
-        <span class="status-dot ${gw?.running ? 'running' : 'stopped'}"></span>
+        <span class="status-dot ${gw?.starting ? 'starting' : gw?.running ? 'running' : 'stopped'}"></span>
       </div>
-      <div class="stat-card-value">${foreignGateway ? t('dashboard.externalInstance') : gw?.running ? t('common.running') : t('common.stopped')}</div>
-      <div class="stat-card-meta">${foreignGateway ? t('dashboard.externalGatewayDetected', { pid: gw?.pid ? ' · PID ' + gw.pid : '' }) : gw?.pid ? 'PID: ' + gw.pid : (gw?.running ? t('dashboard.portDetect') : t('dashboard.notStarted'))}</div>
+      <div class="stat-card-value">${foreignGateway ? t('dashboard.externalInstance') : gw?.starting ? t('dashboard.starting') : gw?.running ? t('common.running') : t('common.stopped')}</div>
+      <div class="stat-card-meta">${foreignGateway ? t('dashboard.externalGatewayDetected', { pid: gw?.pid ? ' · PID ' + gw.pid : '' }) : gw?.pid ? 'PID: ' + gw.pid : (gw?.starting ? t('dashboard.startingHint') : gw?.running ? t('dashboard.portDetect') : t('dashboard.notStarted'))}</div>
       ${foreignGateway
         ? `<div class="stat-card-meta" style="margin-top:8px;color:var(--warning);line-height:1.6">${t('dashboard.foreignGatewayHint')}</div>
            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
@@ -549,21 +549,24 @@ function renderOverview(page, services, mcpConfig, backups, config, agents, stat
   const gwPort = config?.gateway?.port || 18789
   const primaryModel = config?.agents?.defaults?.model?.primary || t('dashboard.notSet')
 
+  const isRunningOrStarting = gw?.running === true || gw?.starting === true
   containerEl.innerHTML = `
     <div class="dashboard-overview">
       <div class="overview-grid">
         <div class="overview-card" data-nav="/gateway">
-          <div class="overview-card-icon" style="color:${foreignGateway ? 'var(--warning)' : gw?.running ? 'var(--success)' : 'var(--error)'}">
+          <div class="overview-card-icon" style="color:${foreignGateway ? 'var(--warning)' : isRunningOrStarting ? (gw?.running ? 'var(--success)' : 'var(--warning)') : 'var(--error)'}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
           </div>
           <div class="overview-card-body">
             <div class="overview-card-title">Gateway</div>
-            <div class="overview-card-value" style="color:${foreignGateway ? 'var(--warning)' : gw?.running ? 'var(--success)' : 'var(--error)'}">${foreignGateway ? t('dashboard.externalInstance') : gw?.running ? t('common.running') : t('common.stopped')}</div>
+            <div class="overview-card-value" style="color:${foreignGateway ? 'var(--warning)' : isRunningOrStarting ? (gw?.running ? 'var(--success)' : 'var(--warning)') : 'var(--error)'}">${foreignGateway ? t('dashboard.externalInstance') : gw?.starting ? t('dashboard.starting') : gw?.running ? t('common.running') : t('common.stopped')}</div>
             <div class="overview-card-meta">${foreignGateway ? `${t('dashboard.port')} ${gwPort}${gw?.pid ? ' · PID ' + gw.pid : ''} · ${t('dashboard.viewOnlyStatus')}` : `${t('dashboard.port')} ${gwPort} ${gw?.pid ? '· PID ' + gw.pid : ''}`}</div>
           </div>
           <div class="overview-card-actions">
             ${foreignGateway
               ? '<button class="btn btn-secondary btn-xs" data-action="resolve-foreign-gateway">' + t('dashboard.viewGuidance') + '</button><button class="btn btn-primary btn-xs" data-action="open-settings">' + t('dashboard.goSettings') + '</button>'
+              : gw?.starting
+              ? '<span class="status-dot starting"></span> <span style="color:var(--text-tertiary);font-size:var(--font-size-xs)">' + t('dashboard.starting') + '</span>'
               : gw?.running
               ? '<button class="btn btn-danger btn-xs" data-action="stop-gw">' + t('dashboard.stopBtn') + '</button><button class="btn btn-secondary btn-xs" data-action="restart-gw">' + t('dashboard.restartBtn') + '</button>'
               : '<button class="btn btn-primary btn-xs" data-action="start-gw">' + t('dashboard.startBtn') + '</button>'

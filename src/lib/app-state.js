@@ -129,7 +129,9 @@ export async function detectOpenclawStatus() {
     if (services.status === 'fulfilled' && services.value?.length > 0) {
       const gw = services.value.find?.(s => s.label === 'ai.openclaw.gateway') || services.value[0]
       const foreign = gw?.running === true && gw?.owned_by_current_instance === false
-      _setGatewayRunning(gw?.running === true && !foreign, foreign)
+      // starting 状态视为"未运行但不计为停止"（避免触发 crash 计数）
+      const effectiveRunning = gw?.running === true || gw?.starting === true
+      _setGatewayRunning(effectiveRunning && !foreign, foreign)
     }
   } catch {
     _openclawReady = false
@@ -160,7 +162,8 @@ function _setGatewayRunning(val, foreign = false) {
 }
 
 /** 刷新 Gateway 运行状态（轻量，仅查服务状态）
- *  防抖：running→stopped 需要连续 3 次检测才切换，避免瞬态误判 */
+ *  防抖：running→stopped 需要连续 3 次检测才切换，避免瞬态误判。
+ *  starting 状态（Gateway 已 spawn 但端口尚未就绪）视为"非运行但不计数"，不触发 crash 阈值。 */
 export async function refreshGatewayStatus() {
   try {
     const services = await api.getServicesStatus()
@@ -168,6 +171,7 @@ export async function refreshGatewayStatus() {
       const gw = services.find?.(s => s.label === 'ai.openclaw.gateway') || services[0]
       const ownedRunning = gw?.running === true && gw?.owned_by_current_instance !== false
       const foreignRunning = gw?.running === true && gw?.owned_by_current_instance === false
+      const starting = gw?.starting === true
       const nowRunning = ownedRunning
       if (nowRunning) {
         _gwStopCount = 0
@@ -177,10 +181,12 @@ export async function refreshGatewayStatus() {
       } else {
         if (foreignRunning) {
           _gwStopCount = 0
+        } else if (starting) {
+          // 启动中：不累加停止计数，也不切换状态（等下次轮询）
         } else {
           _gwStopCount++
         }
-        if (foreignRunning || _gwStopCount >= 3 || !_gatewayRunning) {
+        if (foreignRunning || _gwStopCount >= 3 || (!starting && !_gatewayRunning)) {
           _setGatewayRunning(false, foreignRunning)
         }
       }

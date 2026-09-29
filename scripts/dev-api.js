@@ -12918,9 +12918,19 @@ const handlers = {
         writeGatewayOwner(pid || null)
         ownedByCurrentInstance = true
       }
-      const ownership = !running ? 'stopped' : ownedByCurrentInstance ? 'owned' : 'foreign'
+      // "启动中"判定：端口不通 + owner 文件签名匹配 + pid=null + 30s 内启动
+      const starting = !running
+        && !!owner
+        && owner.pid == null
+        && matchesCurrentGatewayOwnerSignature(owner)
+        && (Date.now() - new Date(owner.startedAt || 0).getTime() < 30000)
 
-      return [{ label, running, pid, description: 'OpenClaw Gateway', cli_installed: cliInstalled, ownership, owned_by_current_instance: ownedByCurrentInstance }]
+      const ownership = starting ? 'starting'
+        : !running ? 'stopped'
+        : ownedByCurrentInstance ? 'owned'
+        : 'foreign'
+
+      return [{ label, running, pid, starting, description: 'OpenClaw Gateway', cli_installed: cliInstalled, ownership, owned_by_current_instance: ownedByCurrentInstance }]
     })
   },
 
@@ -12937,23 +12947,33 @@ const handlers = {
         }
         ensureOwnedGatewayOrThrow(status.pid || null)
         writeGatewayOwner(status.pid || null)
+        serverCacheInvalidate('svc_status')
         return true
       }
       ensureNodeRuntimeCompatibleWeb()
+      // 在 spawn 之前先写 owner（pid=null），标记"启动中"
+      writeGatewayOwner(null)
+      serverCacheInvalidate('svc_status')
       const errorLogOffset = gatewayErrorLogSize()
-      if (isMac) {
-        macStartService(label)
-        await waitForGatewayRunning(label, 10000, errorLogOffset)
+      try {
+        if (isMac) {
+          macStartService(label)
+          await waitForGatewayRunning(label, 10000, errorLogOffset)
+        } else if (isLinux) {
+          linuxStartGateway()
+          await waitForGatewayRunning(label, 10000, errorLogOffset)
+        } else {
+          winStartGateway()
+          await waitForGatewayRunning(label, 10000, errorLogOffset)
+        }
+        serverCacheInvalidate('svc_status')
         return true
+      } catch (e) {
+        // 启动失败时清理 owner，避免 pid=null 残留
+        clearGatewayOwner()
+        serverCacheInvalidate('svc_status')
+        throw e
       }
-      if (isLinux) {
-        linuxStartGateway()
-        await waitForGatewayRunning(label, 10000, errorLogOffset)
-        return true
-      }
-      winStartGateway()
-      await waitForGatewayRunning(label, 10000, errorLogOffset)
-      return true
     })
   },
 

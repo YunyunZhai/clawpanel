@@ -5,6 +5,8 @@ pub struct ServiceStatus {
     pub label: String,
     pub pid: Option<u32>,
     pub running: bool,
+    /// Gateway 进程已 spawn 但端口尚未就绪（Node 冷启动窗口，通常 3-15s）
+    pub starting: bool,
     pub description: String,
     /// CLI 工具是否已安装（Windows/Linux: openclaw CLI）
     pub cli_installed: bool,
