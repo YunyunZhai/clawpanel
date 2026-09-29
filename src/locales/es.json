@@ -267,6 +267,7 @@
     "noLogs": "Sin registros",
     "openControlUIFail": "Failed to open Control UI",
     "starting": "Iniciando...",
+    "startingHint": "Node process starting, may take a few seconds",
     "gwStartSent": "Gateway start command sent",
     "startFail": "Start failed",
     "stopping": "Deteniendo...",

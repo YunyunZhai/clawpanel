@@ -267,6 +267,7 @@
     "noLogs": "Không có nhật ký",
     "openControlUIFail": "Failed to open Control UI",
     "starting": "Đang khởi động...",
+    "startingHint": "Node process starting, may take a few seconds",
     "gwStartSent": "Gateway start command sent",
     "startFail": "Start failed",
     "stopping": "Đang dừng...",

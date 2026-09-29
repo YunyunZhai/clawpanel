@@ -267,6 +267,7 @@
     "noLogs": "Нет записей",
     "openControlUIFail": "Failed to open Control UI",
     "starting": "Запуск...",
+    "startingHint": "Node process starting, may take a few seconds",
     "gwStartSent": "Gateway start command sent",
     "startFail": "Start failed",
     "stopping": "Остановка...",

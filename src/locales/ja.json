@@ -267,6 +267,7 @@
     "noLogs": "ログなし",
     "openControlUIFail": "Control UI を開けませんでした",
     "starting": "起動中...",
+    "startingHint": "Node プロセス起動中、数秒かかります",
     "gwStartSent": "Gateway 起動コマンド送信済み",
     "startFail": "起動失敗",
     "stopping": "停止中...",

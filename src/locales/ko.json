@@ -267,6 +267,7 @@
     "noLogs": "로그 없음",
     "openControlUIFail": "Control UI 열기 실패",
     "starting": "시작 중...",
+    "startingHint": "Node 프로세스 시작 중, 몇 초 소요됨",
     "gwStartSent": "Gateway 시작 명령 전송됨",
     "startFail": "시작 실패",
     "stopping": "중지 중...",

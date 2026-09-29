@@ -267,6 +267,7 @@
     "noLogs": "暫無日誌",
     "openControlUIFail": "開啟 Control UI 失敗",
     "starting": "啟動中...",
+    "startingHint": "Node 行程冷啟動中，預計需數秒",
     "gwStartSent": "Gateway 啟動指令已發送",
     "startFail": "啟動失敗",
     "stopping": "停止中...",
