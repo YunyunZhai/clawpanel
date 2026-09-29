@@ -88,7 +88,6 @@ async function loadAll(page) {
 // ===== 版本检测 =====
 
 // 后端检测到的当前安装源
-let detectedSource = 'official'
 let lastVersionInfo = null
 
 async function loadVersion(page) {
@@ -99,16 +98,11 @@ async function loadVersion(page) {
       api.readPanelConfig().catch(() => ({})),
     ])
     lastVersionInfo = info
-    detectedSource = info.source === 'chinese' ? 'chinese' : 'official'
     const ver = info.current || t('common.unknown')
     const hasRecommended = !!info.recommended
     const aheadOfRecommended = !!info.current && hasRecommended && !!info.ahead_of_recommended
     const driftFromRecommended = !!info.current && hasRecommended && !info.is_recommended && !aheadOfRecommended
     const canUpgradeLatest = !!info.latest_update_available && !!info.latest
-    const isChinese = detectedSource === 'chinese'
-    const sourceTag = isChinese ? t('services.chineseEdition') : t('services.officialEdition')
-    const switchLabel = isChinese ? t('services.switchToOfficial') : t('services.switchToChinese')
-    const switchTarget = isChinese ? 'official' : 'chinese'
     const dockerImage = (panelConfig?.dockerDefaultImage || '').trim() || 'ghcr.io/qingchencloud/openclaw'
     const policyNote = aheadOfRecommended
       ? t('services.policyAhead', { ver, recommended: info.recommended })
@@ -134,7 +128,7 @@ async function loadVersion(page) {
         <div class="stat-cards" style="margin-bottom:var(--space-lg)">
           <div class="stat-card">
             <div class="stat-card-header">
-              <span class="stat-card-label">${t('services.currentVersion')} · <span style="color:var(--accent)">${sourceTag}</span></span>
+              <span class="stat-card-label">${t('services.currentVersion')}</span>
             </div>
             <div class="stat-card-value">${ver}</div>
             <div class="stat-card-meta">
@@ -146,7 +140,6 @@ async function loadVersion(page) {
             <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-sm);flex-wrap:wrap">
               ${aheadOfRecommended ? `<button class="btn btn-primary btn-sm" data-action="upgrade">${t('services.rollbackToRecommended')}</button>` : driftFromRecommended ? `<button class="btn btn-primary btn-sm" data-action="upgrade">${t('services.switchToRecommended')}</button>` : ''}
               ${canUpgradeLatest ? `<button class="btn btn-primary btn-sm" data-action="upgrade-latest" data-version="${escapeHtml(info.latest)}">${t('services.upgradeToLatest')}</button>` : ''}
-              <button class="btn btn-secondary btn-sm" data-action="switch-source" data-source="${switchTarget}">${switchLabel}</button>
             </div>
             <div style="margin-top:8px;font-size:var(--font-size-xs);color:var(--text-tertiary);line-height:1.6">
               ${policyNote}
@@ -504,7 +497,7 @@ function renderServices(container, services) {
         ${cliMissing
           ? `<div style="display:flex;flex-direction:column;gap:var(--space-xs);align-items:flex-end">
                <div style="color:var(--text-tertiary);font-size:var(--font-size-xs)">${t('services.installCliHint')}</div>
-               <code style="font-size:var(--font-size-xs);background:var(--bg-tertiary);padding:2px 8px;border-radius:4px;user-select:all">npm install -g @qingchencloud/openclaw-zh</code>
+               <code style="font-size:var(--font-size-xs);background:var(--bg-tertiary);padding:2px 8px;border-radius:4px;user-select:all">npm install -g openclaw</code>
                <button class="btn btn-secondary btn-sm" data-action="refresh-services" style="margin-top:4px">${t('services.refreshStatus')}</button>
              </div>`
           : foreignGateway
@@ -625,9 +618,6 @@ function bindEvents(page) {
           break
         case 'upgrade-latest':
           await handleUpgradeLatest(btn, page)
-          break
-        case 'switch-source':
-          await handleSwitchSource(btn.dataset.source, page)
           break
         case 'install-gateway':
           await handleInstallGateway(btn, page)
@@ -1007,20 +997,18 @@ async function doUpgradeWithModal(source, page, version = null, method = 'auto')
 }
 
 async function handleUpgrade(btn, page) {
-  const sourceLabel = detectedSource === 'official' ? t('services.officialEdition') : t('services.chineseEdition')
   const recommended = lastVersionInfo?.recommended
-  const yes = await showConfirm(t('services.upgradeConfirm', { source: sourceLabel, version: recommended ? `（${recommended}）` : '' }))
+  const yes = await showConfirm(t('services.upgradeConfirm', { source: t('services.officialEdition'), version: recommended ? `（${recommended}）` : '' }))
   if (!yes) return
-  await doUpgradeWithModal(detectedSource, page, recommended || null)
+  await doUpgradeWithModal('official', page, recommended || null)
 }
 
 async function handleUpgradeLatest(btn, page) {
-  const sourceLabel = detectedSource === 'official' ? t('services.officialEdition') : t('services.chineseEdition')
   const latest = btn.dataset.version || lastVersionInfo?.latest
   if (!latest) return
-  const yes = await showConfirm(t('services.upgradeLatestConfirm', { source: sourceLabel, version: `（${latest}）` }))
+  const yes = await showConfirm(t('services.upgradeLatestConfirm', { source: t('services.officialEdition'), version: `（${latest}）` }))
   if (!yes) return
-  await doUpgradeWithModal(detectedSource, page, latest)
+  await doUpgradeWithModal('official', page, latest)
 }
 
 async function handleSwitchSource(target, page) {

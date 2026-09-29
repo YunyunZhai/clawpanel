@@ -590,7 +590,7 @@ function renderInstallSection() {
       <p style="color:var(--text-tertiary);font-size:var(--font-size-xs);line-height:1.6;margin:-4px 0 var(--space-sm)">
         ${t('setup.installHint2')}
       </p>
-      <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-sm)">
+      <div style="display:none">
         <label class="setup-source-option" style="flex:1;cursor:pointer">
           <input type="radio" name="install-source" value="chinese" style="margin-right:6px">
           <div>
@@ -669,7 +669,7 @@ function renderEnvironmentHint() {
           <div class="setup-help-block">
             <div class="setup-help-label">${t('setup.dockerHint')}</div>
             <div class="setup-help-copy">${t('setup.dockerDesc')}</div>
-            <code class="setup-help-code">npm i -g @qingchencloud/openclaw-zh</code>
+            <code class="setup-help-code">npm i -g openclaw</code>
             <code class="setup-help-code">curl -fsSL https://raw.githubusercontent.com/qingchencloud/clawpanel/main/deploy.sh | bash</code>
             <div class="setup-help-copy">${t('setup.domesticMirrorShort')} <code>curl -fsSL https://gitee.com/QtCodeCreators/clawpanel/raw/main/deploy.sh | bash</code></div>
           </div>
@@ -1148,7 +1148,6 @@ function bindEvents(page, detectState) {
   }
 
   function updateMethodVisibility() {
-    const source = page.querySelector('input[name="install-source"]:checked')?.value || 'official'
     if (methodSection) methodSection.style.display = 'none'
     if (registrySection) registrySection.style.display = ''
     if (methodHint && methodSelect) methodHint.textContent = ''
@@ -1163,7 +1162,7 @@ function bindEvents(page, detectState) {
   if (!installBtn) return
 
   installBtn.addEventListener('click', async () => {
-    const source = page.querySelector('input[name="install-source"]:checked')?.value || 'official'
+    const source = 'official'
     const method = 'npm'
     const registry = page.querySelector('#registry-select')?.value
     const modal = showUpgradeModal(t('setup.installOpenclaw'))
