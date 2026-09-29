@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -93,7 +94,7 @@ test('Hermes runtime environment pins the same home used by ClawPanel', async ()
 
 test('Hermes API Server runtime env creates a strong key without dropping provider settings', async () => {
   const { ensureHermesApiServerRuntimeEnvAt } = await import('../scripts/dev-api.js')
-  const home = fs.mkdtempSync(path.join(process.env.TEMP || process.cwd(), 'clawpanel-hermes-env-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawpanel-hermes-env-'))
   fs.writeFileSync(path.join(home, '.env'), 'CUSTOM_API_KEY=provider-secret\nOPENAI_BASE_URL=https://example.test/v1\n')
 
   const result = ensureHermesApiServerRuntimeEnvAt(home, () => 'a'.repeat(64))
@@ -109,21 +110,26 @@ test('Hermes API Server runtime env creates a strong key without dropping provid
   const second = ensureHermesApiServerRuntimeEnvAt(home, () => 'b'.repeat(64))
   assert.equal(second.changed, false)
   assert.equal(fs.readFileSync(path.join(home, '.env'), 'utf8'), saved)
+
+  fs.rmSync(home, { recursive: true, force: true })
 })
 
 test('Hermes API Server runtime env preserves a usable existing key and replaces the legacy weak key', async () => {
   const { ensureHermesApiServerRuntimeEnvAt } = await import('../scripts/dev-api.js')
-  const strongHome = fs.mkdtempSync(path.join(process.env.TEMP || process.cwd(), 'clawpanel-hermes-strong-'))
+  const strongHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawpanel-hermes-strong-'))
   const existing = 'existing-strong-key-1234567890'
   fs.writeFileSync(path.join(strongHome, '.env'), `API_SERVER_KEY=${existing}\n`)
   const preserved = ensureHermesApiServerRuntimeEnvAt(strongHome, () => 'b'.repeat(64))
   assert.equal(preserved.apiServerKey, existing)
 
-  const weakHome = fs.mkdtempSync(path.join(process.env.TEMP || process.cwd(), 'clawpanel-hermes-weak-'))
+  const weakHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawpanel-hermes-weak-'))
   fs.writeFileSync(path.join(weakHome, '.env'), 'API_SERVER_KEY=clawpanel-local\n')
   const replaced = ensureHermesApiServerRuntimeEnvAt(weakHome, () => 'c'.repeat(64))
   assert.equal(replaced.apiServerKey, 'c'.repeat(64))
   assert.doesNotMatch(fs.readFileSync(path.join(weakHome, '.env'), 'utf8'), /clawpanel-local/)
+
+  fs.rmSync(strongHome, { recursive: true, force: true })
+  fs.rmSync(weakHome, { recursive: true, force: true })
 })
 
 test('Tauri Hermes runtime pins HERMES_HOME and repairs API Server auth before start', () => {
@@ -137,7 +143,7 @@ test('Tauri Hermes runtime pins HERMES_HOME and repairs API Server auth before s
 test('Hermes 0.20.5 migrates a legacy bare custom endpoint to a named provider route', async () => {
   const { repairHermesCustomProviderRoutingAt } = await import('../scripts/dev-api.js')
   const YAML = await import('yaml')
-  const home = fs.mkdtempSync(path.join(process.env.TEMP || process.cwd(), 'clawpanel-hermes-route-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawpanel-hermes-route-'))
   fs.writeFileSync(path.join(home, 'config.yaml'), `model:\n  default: gpt-5.5\n  provider: custom\n  context_length: 131072\nhooks:\n  enabled: true\n`)
   fs.writeFileSync(path.join(home, '.env'), `OPENAI_BASE_URL=https://example.test/v1\nCUSTOM_API_KEY=provider-secret\n`)
 
@@ -156,11 +162,13 @@ test('Hermes 0.20.5 migrates a legacy bare custom endpoint to a named provider r
 
   const second = repairHermesCustomProviderRoutingAt(home)
   assert.equal(second.changed, false)
+
+  fs.rmSync(home, { recursive: true, force: true })
 })
 
 test('Hermes 0.20.5 keeps a normal OpenRouter route even when legacy custom env remains', async () => {
   const { repairHermesCustomProviderRoutingAt } = await import('../scripts/dev-api.js')
-  const home = fs.mkdtempSync(path.join(process.env.TEMP || process.cwd(), 'clawpanel-hermes-openrouter-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawpanel-hermes-openrouter-'))
   const config = `model:\n  default: openai/gpt-5.5\n  provider: openrouter\n`
   fs.writeFileSync(path.join(home, 'config.yaml'), config)
   fs.writeFileSync(path.join(home, '.env'), `OPENAI_BASE_URL=https://legacy.example.test/v1\nOPENROUTER_API_KEY=openrouter-secret\n`)
@@ -170,4 +178,6 @@ test('Hermes 0.20.5 keeps a normal OpenRouter route even when legacy custom env 
   assert.equal(result.changed, false)
   assert.equal(fs.readFileSync(path.join(home, 'config.yaml'), 'utf8'), config)
   assert.equal(fs.existsSync(path.join(home, 'config.yaml.bak')), false)
+
+  fs.rmSync(home, { recursive: true, force: true })
 })
