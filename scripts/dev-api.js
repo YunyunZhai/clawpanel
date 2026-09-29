@@ -14737,6 +14737,11 @@ const handlers = {
               }
             }
           } catch {}
+          // Fallback: getLocalOpenclawVersion() 通过多种方式更可靠地检测版本
+          //（CLI 路径、standalone 目录、brew symlink、status --json、--version 等）
+          try {
+            return getLocalOpenclawVersion() || null
+          } catch {}
           return null
         })()
         return {
@@ -15606,6 +15611,20 @@ const handlers = {
       logs.push(`检测到 ${installationsBefore.length} 个 OpenClaw 安装；升级成功后会切换到新版，旧安装不会自动删除。`)
     }
 
+    // 安装成功后同步 openclaw.json meta.lastTouchedVersion + 清除 status_summary 缓存
+    const _syncMetaAndClearStatusCache = (verStr) => {
+      try {
+        const cfg = readOpenclawConfigOptional()
+        if (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) {
+          if (!cfg.meta || typeof cfg.meta !== 'object' || Array.isArray(cfg.meta)) cfg.meta = {}
+          cfg.meta.lastTouchedVersion = verStr
+          cfg.meta.lastTouchedAt = (new Date()).toISOString()
+          writeJsonAtomic(CONFIG_PATH, cfg, { backup: true })
+        }
+      } catch {} // 非致命：openclaw.json 缺失/损坏不阻断安装
+      _serverCache.delete('status_summary')
+    }
+
     // ── standalone 安装（auto / standalone-r2 / standalone-github） ──
     // 注意：standalone 独立包与 npm 包是两套独立发布产物，版本号流不同。
     // 推荐号（recommended）来自 npm 包版本（如 2026.7.1-2-zh.1），不能直接用于
@@ -15622,6 +15641,7 @@ const handlers = {
           const saResult = await _tryStandaloneInstall(saVer, logs, githubReleaseBase)
           if (saResult) {
             logs.push('✅ standalone (GitHub) 安装完成')
+            _syncMetaAndClearStatusCache(getLocalOpenclawVersion() || saVer)
             return logs.join('\n')
           }
         } catch (e) {
@@ -15634,6 +15654,7 @@ const handlers = {
           const saResult = await _tryStandaloneInstall(saVer, logs, null)
           if (saResult) {
             logs.push('✅ standalone (CDN) 安装完成')
+            _syncMetaAndClearStatusCache(getLocalOpenclawVersion() || saVer)
             return logs.join('\n')
           }
         } catch (e) {
@@ -15646,6 +15667,7 @@ const handlers = {
             const saResult = await _tryStandaloneInstall(saVer, logs, githubReleaseBase)
             if (saResult) {
               logs.push('✅ standalone (GitHub) 安装完成')
+              _syncMetaAndClearStatusCache(getLocalOpenclawVersion() || saVer)
               return logs.join('\n')
             }
           } catch (e) {
@@ -15734,6 +15756,7 @@ const handlers = {
       bindOpenclawCliPath(npmCli)
       logs.push(`已切换当前 CLI: ${npmCli} (${installedVersion})`)
       logs.push(`安装完成 (${pkg}@${installedVersion})`)
+      _syncMetaAndClearStatusCache(installedVersion)
       return `${logs.join('\n')}\n${out.slice(-400)}`
     } catch (e) {
       throw new Error('安装失败: ' + (e.stderr?.toString() || e.message).slice(-300))

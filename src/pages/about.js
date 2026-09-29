@@ -287,7 +287,6 @@ async function loadData(page) {
     checkNewVersion(cards, panelVersion)
 
     const isInstalled = !!version.current
-    const sourceLabel = version.source === 'official' ? t('about.official') : version.source === 'chinese' ? t('about.chinese') : t('about.unknownSource')
     const btnSm = 'padding:2px 8px;font-size:var(--font-size-xs)'
     const hasRecommended = !!version.recommended
     const aheadOfRecommended = isInstalled && hasRecommended && !!version.ahead_of_recommended
@@ -303,7 +302,7 @@ async function loadData(page) {
         <div class="stat-card-meta" id="panel-update-meta" style="display:flex;align-items:center;gap:8px">${panelUpdateHtml}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-header"><span class="stat-card-label">OpenClaw · ${sourceLabel}</span></div>
+        <div class="stat-card-header"><span class="stat-card-label">OpenClaw</span></div>
         <div class="stat-card-value">${version.current || t('about.notInstalled')}</div>
         <div class="stat-card-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           ${isInstalled && hasRecommended
@@ -335,11 +334,11 @@ async function loadData(page) {
 
     const applyRecommendedBtn = cards.querySelector('#btn-apply-recommended')
     if (applyRecommendedBtn && version.recommended) {
-      applyRecommendedBtn.onclick = () => doInstall(page, aheadOfRecommended ? t('about.rollbackToRecommendedStable') : t('about.switchToRecommendedStable'), version.source, version.recommended)
+      applyRecommendedBtn.onclick = () => doInstall(page, aheadOfRecommended ? t('about.rollbackToRecommendedStable') : t('about.switchToRecommendedStable'), 'official', version.recommended)
     }
     const applyLatestBtn = cards.querySelector('#btn-apply-latest')
     if (applyLatestBtn && version.latest) {
-      applyLatestBtn.onclick = () => doInstall(page, t('about.switchToLatestVersion'), version.source, version.latest)
+      applyLatestBtn.onclick = () => doInstall(page, t('about.switchToLatestVersion'), 'official', version.latest)
     }
 
     // 版本管理 / 安装
@@ -391,7 +390,7 @@ async function loadData(page) {
 }
 
 /**
- * 版本选择器弹窗 — 选择版本（汉化版/原版）+ 版本号
+ * 版本选择器弹窗 — 选择版本号
  */
 async function showVersionPicker(page, currentVersion) {
   const isInstalled = !!currentVersion.current
@@ -401,19 +400,6 @@ async function showVersionPicker(page, currentVersion) {
     <div class="modal" style="max-width:460px">
       <div class="modal-title">${isInstalled ? t('about.switchVersion') : t('about.installOpenclaw')}</div>
       <div style="display:flex;flex-direction:column;gap:16px;margin:16px 0">
-        <div>
-          <label style="font-size:var(--font-size-sm);color:var(--text-secondary);display:block;margin-bottom:8px">${t('about.versionLabel')}</label>
-          <div style="display:flex;gap:8px">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-size:var(--font-size-sm);flex:1;justify-content:center;transition:all .15s" id="lbl-official">
-              <input type="radio" name="oc-source" value="official" ${currentVersion.source !== 'chinese' ? 'checked' : ''} style="accent-color:var(--primary)">
-              ${t('about.official')}
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-size:var(--font-size-sm);flex:1;justify-content:center;transition:all .15s" id="lbl-chinese">
-              <input type="radio" name="oc-source" value="chinese" ${currentVersion.source === 'chinese' ? 'checked' : ''} style="accent-color:var(--primary)">
-              ${t('about.chinese')}
-            </label>
-          </div>
-        </div>
         <div>
           <label style="font-size:var(--font-size-sm);color:var(--text-secondary);display:block;margin-bottom:8px">${t('about.selectVersion')}</label>
           <select id="oc-version-select" class="input" style="width:100%;padding:8px 12px;font-size:var(--font-size-sm)">
@@ -439,9 +425,6 @@ async function showVersionPicker(page, currentVersion) {
   const select = overlay.querySelector('#oc-version-select')
   const confirmBtn = overlay.querySelector('#oc-confirm-btn')
   const hintEl = overlay.querySelector('#oc-action-hint')
-  const radios = overlay.querySelectorAll('input[name="oc-source"]')
-  const lblChinese = overlay.querySelector('#lbl-chinese')
-  const lblOfficial = overlay.querySelector('#lbl-official')
 
   const close = () => overlay.remove()
   overlay.querySelector('[data-action="cancel"]').onclick = close
@@ -449,39 +432,21 @@ async function showVersionPicker(page, currentVersion) {
   overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close() })
 
   let versionsCache = {}
-  let currentSelect = currentVersion.source === 'chinese' ? 'chinese' : 'official'
-
-  function updateRadioStyle() {
-    const sel = currentSelect
-    lblChinese.style.borderColor = sel !== 'official' ? 'var(--primary)' : 'var(--border)'
-    lblChinese.style.background = sel !== 'official' ? 'var(--primary-bg, rgba(99,102,241,0.06))' : ''
-    lblOfficial.style.borderColor = sel === 'official' ? 'var(--primary)' : 'var(--border)'
-    lblOfficial.style.background = sel === 'official' ? 'var(--primary-bg, rgba(99,102,241,0.06))' : ''
-  }
+  const currentSelect = 'official'
 
   function updateHint() {
-    const targetSource = currentSelect
     const targetVer = select.value
     if (!targetVer || targetVer === '') { hintEl.textContent = ''; confirmBtn.disabled = true; return }
     const targetTag = select.selectedIndex === 0 ? t('about.tagRecommended') : t('about.tagNeedTest')
 
-    const sameSource = targetSource === currentVersion.source
-
     if (!isInstalled) {
       confirmBtn.textContent = t('about.btnInstall')
-      hintEl.textContent = t('about.hintInstall', { source: targetSource === 'official' ? t('about.official') : targetSource === 'chinese' ? t('about.chinese') : t('about.unknownSource'), ver: targetVer, tag: targetTag })
+      hintEl.textContent = `${targetVer}${targetTag}`
       confirmBtn.disabled = false
       return
     }
 
-    if (!sameSource) {
-      confirmBtn.textContent = t('about.btnSwitch')
-      hintEl.innerHTML = `${t('about.hintCurrent')}: <strong>${currentVersion.source === 'official' ? t('about.official') : currentVersion.source === 'chinese' ? t('about.chinese') : t('about.unknownSource')} ${currentVersion.current}</strong> → <strong>${targetSource === 'official' ? t('about.official') : targetSource === 'chinese' ? t('about.chinese') : t('about.unknownSource')} ${targetVer}</strong>${targetTag}`
-      confirmBtn.disabled = false
-      return
-    }
-
-    // 同源，比较版本
+    // 比较版本
     const parseVer = v => v.split(/[^0-9]/).filter(Boolean).map(Number)
     const cur = parseVer(currentVersion.current)
     const tgt = parseVer(targetVer)
@@ -525,7 +490,7 @@ async function showVersionPicker(page, currentVersion) {
       const versions = showNightly ? allVersions : (stable.length > 0 ? stable : allVersions)
       const nightlyCount = allVersions.length - stable.length
       select.innerHTML = versions.map((v, idx) => {
-        const isCurrent = isInstalled && v === currentVersion.current && source === currentVersion.source
+        const isCurrent = isInstalled && v === currentVersion.current
         return `<option value="${v}">${v}${idx === 0 ? ` (${t('about.recommended')})` : ''}${isCurrent ? ` (${t('about.current')})` : ''}</option>`
       }).join('')
       // nightly 切换提示
@@ -547,25 +512,15 @@ async function showVersionPicker(page, currentVersion) {
     }
   }
 
-  radios.forEach(radio => {
-    radio.addEventListener('change', () => {
-      currentSelect = radio.value
-      updateRadioStyle()
-      loadVersions(currentSelect)
-    })
-  })
-
   select.addEventListener('change', updateHint)
 
   confirmBtn.onclick = () => {
-    const source = currentSelect
     const ver = select.value
     const action = confirmBtn.textContent
     close()
-    doInstall(page, `${action} OpenClaw`, source, ver)
+    doInstall(page, `${action} OpenClaw`, 'official', ver)
   }
 
-  updateRadioStyle()
   loadVersions(currentSelect)
 }
 
@@ -593,6 +548,8 @@ async function doInstall(page, title, source, version) {
         cleanup()
         modal.setDone(typeof e.payload === 'string' ? e.payload : t('about.operationDone'))
         loadData(page)
+        // 通知 Dashboard / 其他页面运行时已变更，刷新版本缓存
+        window.dispatchEvent(new CustomEvent('openclaw:runtime-changed'))
       })
 
       unlistenError = await listen('upgrade-error', async (e) => {
@@ -827,11 +784,6 @@ const PROJECTS = [
     url: 'https://github.com/openclaw/openclaw',
   },
   {
-    name: 'OpenClaw-zh',
-    desc: t('about.projectOpenClawZh'),
-    url: 'https://github.com/1186258278/OpenClawChineseTranslation',
-  },
-  {
     name: 'ClawPanel',
     desc: t('about.projectClawPanel'),
     url: 'https://github.com/qingchencloud/clawpanel',
@@ -869,7 +821,6 @@ function renderProjects(page) {
 
 const LINKS = [
   { label: t('about.linkWebsite'), url: 'https://claw.qt.cool', primary: true },
-  { label: t('about.linkOpenClawZh'), url: 'https://github.com/1186258278/OpenClawChineseTranslation' },
   { label: t('about.linkClawApp'), url: 'https://clawapp.qt.cool' },
   { label: t('about.linkCftunnel'), url: 'https://cftunnel.qt.cool' },
 ]
