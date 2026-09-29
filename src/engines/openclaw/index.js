@@ -78,6 +78,7 @@ export default {
         { route: '/dreaming', label: t('sidebar.dreaming'), icon: 'dreaming', gate: 'dreaming' },
         { route: '/cron', label: t('sidebar.cron'), icon: 'clock', gate: 'cron' },
         { route: '/usage', label: t('sidebar.usage'), icon: 'bar-chart' },
+        { route: '/wallet', label: t('sidebar.wallet'), icon: 'wallet' },
       ]
     }, {
       section: t('sidebar.sectionExtension'),
@@ -118,6 +119,7 @@ export default {
       { path: '/channels', loader: () => import('../../pages/channels.js') },
       { path: '/cron', loader: () => import('../../pages/cron.js') },
       { path: '/usage', loader: () => import('../../pages/usage.js') },
+      { path: '/wallet', loader: () => import('../../pages/wallet.js') },
       { path: '/communication', loader: () => import('../../pages/communication.js') },
       { path: '/notifications', loader: () => import('../../pages/notifications.js') },
       { path: '/settings', loader: () => import('../../pages/settings.js') },

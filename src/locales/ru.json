@@ -153,7 +153,8 @@
     "about": "О программе",
     "glossary": "Глоссарий",
     "notifications": "Push",
-    "setup": "Начальная настройка"
+    "setup": "Начальная настройка",
+    "wallet": "Кошелёк"
   },
   "instance": {
     "local": "Локальный",
@@ -267,6 +268,7 @@
     "noLogs": "Нет записей",
     "openControlUIFail": "Failed to open Control UI",
     "starting": "Запуск...",
+    "startingHint": "Node process starting, may take a few seconds",
     "gwStartSent": "Gateway start command sent",
     "startFail": "Start failed",
     "stopping": "Остановка...",
@@ -2940,11 +2942,7 @@
   "logs": {
     "title": "Журналы",
     "desc": "Просмотр журналов OpenClaw",
-    "tabGateway": "Gateway",
-    "tabGatewayErr": "Ошибки Gateway",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Резервное копирование",
-    "tabAudit": "Аудит",
+    "noFiles": "Файлы журналов не найдены",
     "searchPlaceholder": "Поиск...",
     "refresh": "Обновить",
     "autoScroll": "Автопрокрутка",
@@ -5738,5 +5736,32 @@
     "loopbackDesc": "OpenCode listens only on 127.0.0.1 and uses a random service password. Web deployments embed it through a sandboxed proxy with a short-lived capability; the OpenCode port stays private and panel cookies are not forwarded upstream.",
     "providers": "Provider List",
     "loadFailed": "Failed to read OpenCode status"
+  },
+  "wallet": {
+    "title": "Кошелёк",
+    "desc": "Просмотр баланса API и пополнение по QR-коду",
+    "balance": "Текущий баланс",
+    "usedQuota": "Использовано",
+    "account": "Аккаунт",
+    "recharge": "Пополнить",
+    "generateQR": "Создать QR-код пополнения",
+    "rechargeHint": "После сканирования войдите на телефоне и выберите сумму",
+    "scanQR": "Отсканируйте QR-код для пополнения",
+    "openTopup": "Открыть страницу пополнения",
+    "rechargeSuccess": "Пополнение зачислено",
+    "refreshBalance": "Обновить баланс",
+    "oneapiConfig": "Подключение OneAPI",
+    "oneapiUrl": "Адрес OneAPI",
+    "oneapiUrlHint": "Адрес облачного сервера OneAPI",
+    "oneapiUsername": "Логин",
+    "oneapiUsernameHint": "Предустановленный логин OneAPI для запроса баланса",
+    "oneapiPassword": "Пароль",
+    "oneapiPasswordHint": "Пароль учётной записи, хранится только на этом устройстве",
+    "saveConfig": "Сохранить настройки",
+    "editConfig": "Изменить настройки",
+    "testConnection": "Проверить подключение",
+    "connectionOK": "Подключение в порядке",
+    "connectionFailed": "Не удалось подключиться",
+    "configRequired": "Сначала укажите адрес, логин и пароль OneAPI"
   }
 }

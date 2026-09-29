@@ -153,7 +153,8 @@
     "about": "关于",
     "glossary": "术语",
     "notifications": "推送通知",
-    "setup": "初始设置"
+    "setup": "初始设置",
+    "wallet": "钱包"
   },
   "instance": {
     "local": "本机",
@@ -267,6 +268,7 @@
     "noLogs": "暂无日志",
     "openControlUIFail": "打开 Control UI 失败",
     "starting": "启动中...",
+    "startingHint": "Node 进程冷启动中，预计需数秒",
     "gwStartSent": "Gateway 启动指令已发送",
     "startFail": "启动失败",
     "stopping": "停止中...",
@@ -2940,11 +2942,7 @@
   "logs": {
     "title": "日志查看",
     "desc": "查看 OpenClaw 各服务日志",
-    "tabGateway": "Gateway 日志",
-    "tabGatewayErr": "Gateway 错误",
-    "tabGuardian": "守护进程",
-    "tabBackup": "备份日志",
-    "tabAudit": "审计日志",
+    "noFiles": "日志目录为空或尚未创建",
     "searchPlaceholder": "搜索日志...",
     "refresh": "刷新",
     "autoScroll": "自动滚动",
@@ -5738,5 +5736,32 @@
     "loopbackDesc": "OpenCode 只监听 127.0.0.1，并启用随机服务密码。Web 版通过短期专用令牌和沙箱代理内嵌界面，不公开 OpenCode 端口，也不会向上游转发面板 Cookie。",
     "providers": "Provider 列表",
     "loadFailed": "读取 OpenCode 状态失败"
+  },
+  "wallet": {
+    "title": "钱包",
+    "desc": "查看 API 余额并扫码充值",
+    "balance": "当前余额",
+    "usedQuota": "已用额度",
+    "account": "账号",
+    "recharge": "充值",
+    "generateQR": "生成充值二维码",
+    "rechargeHint": "扫码后在手机端登录并选择金额充值",
+    "scanQR": "请用手机扫码充值",
+    "openTopup": "打开充值页",
+    "rechargeSuccess": "充值到账",
+    "refreshBalance": "刷新余额",
+    "oneapiConfig": "OneAPI 连接",
+    "oneapiUrl": "OneAPI 地址",
+    "oneapiUrlHint": "云端 OneAPI 服务地址，如 https://api.example.com",
+    "oneapiUsername": "登录账号",
+    "oneapiUsernameHint": "预置的 OneAPI 登录账号，用于查询余额",
+    "oneapiPassword": "登录密码",
+    "oneapiPasswordHint": "该账号的密码，仅保存在本机",
+    "saveConfig": "保存配置",
+    "editConfig": "修改配置",
+    "testConnection": "测试连接",
+    "connectionOK": "连接正常",
+    "connectionFailed": "连接失败",
+    "configRequired": "请先填写 OneAPI 地址、账号和密码"
   }
 }

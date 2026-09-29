@@ -153,7 +153,8 @@
     "about": "について",
     "glossary": "用語",
     "notifications": "プッシュ",
-    "setup": "初期設定"
+    "setup": "初期設定",
+    "wallet": "ウォレット"
   },
   "instance": {
     "local": "ローカル",
@@ -267,6 +268,7 @@
     "noLogs": "ログなし",
     "openControlUIFail": "Control UI を開けませんでした",
     "starting": "起動中...",
+    "startingHint": "Node プロセス起動中、数秒かかります",
     "gwStartSent": "Gateway 起動コマンド送信済み",
     "startFail": "起動失敗",
     "stopping": "停止中...",
@@ -2940,11 +2942,7 @@
   "logs": {
     "title": "ログ",
     "desc": "OpenClaw サービスログを表示",
-    "tabGateway": "Gateway ログ",
-    "tabGatewayErr": "Gateway エラー",
-    "tabGuardian": "ガーディアン",
-    "tabBackup": "バックアップログ",
-    "tabAudit": "監査ログ",
+    "noFiles": "ログディレクトリが空です",
     "searchPlaceholder": "ログを検索...",
     "refresh": "更新",
     "autoScroll": "自動スクロール",
@@ -5738,5 +5736,32 @@
     "loopbackDesc": "OpenCode listens only on 127.0.0.1 and uses a random service password. Web deployments embed it through a sandboxed proxy with a short-lived capability; the OpenCode port stays private and panel cookies are not forwarded upstream.",
     "providers": "Provider List",
     "loadFailed": "Failed to read OpenCode status"
+  },
+  "wallet": {
+    "title": "ウォレット",
+    "desc": "API 残高の確認と QR コードでのチャージ",
+    "balance": "現在の残高",
+    "usedQuota": "使用済み额度",
+    "account": "アカウント",
+    "recharge": "チャージ",
+    "generateQR": "チャージ用 QR コードを生成",
+    "rechargeHint": "スキャン後、スマホでログインして金額を選択してください",
+    "scanQR": "スマホで QR コードをスキャンしてチャージ",
+    "openTopup": "チャージページを開く",
+    "rechargeSuccess": "チャージ完了",
+    "refreshBalance": "残高を更新",
+    "oneapiConfig": "OneAPI 接続",
+    "oneapiUrl": "OneAPI アドレス",
+    "oneapiUrlHint": "クラウド OneAPI サーバーのアドレス",
+    "oneapiUsername": "ログインユーザー名",
+    "oneapiUsernameHint": "残高照会用のプリセット OneAPI ユーザー名",
+    "oneapiPassword": "ログインパスワード",
+    "oneapiPasswordHint": "このアカウントのパスワード（本機にのみ保存）",
+    "saveConfig": "設定を保存",
+    "editConfig": "設定を編集",
+    "testConnection": "接続テスト",
+    "connectionOK": "接続正常",
+    "connectionFailed": "接続に失敗しました",
+    "configRequired": "先に OneAPI アドレス、ユーザー名、パスワードを入力してください"
   }
 }

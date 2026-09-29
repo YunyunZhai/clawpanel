@@ -153,7 +153,8 @@
     "about": "關於",
     "glossary": "術語",
     "notifications": "推送通知",
-    "setup": "初始設定"
+    "setup": "初始設定",
+    "wallet": "錢包"
   },
   "instance": {
     "local": "本機",
@@ -267,6 +268,7 @@
     "noLogs": "暫無日誌",
     "openControlUIFail": "開啟 Control UI 失敗",
     "starting": "啟動中...",
+    "startingHint": "Node 行程冷啟動中，預計需數秒",
     "gwStartSent": "Gateway 啟動指令已發送",
     "startFail": "啟動失敗",
     "stopping": "停止中...",
@@ -2940,11 +2942,7 @@
   "logs": {
     "title": "日誌查看",
     "desc": "查看 OpenClaw 各服務日誌",
-    "tabGateway": "Gateway 日誌",
-    "tabGatewayErr": "Gateway 錯誤",
-    "tabGuardian": "守护處理程序",
-    "tabBackup": "備份日誌",
-    "tabAudit": "審計日誌",
+    "noFiles": "日誌目錄為空或尚未建立",
     "searchPlaceholder": "搜尋日誌...",
     "refresh": "重新整理",
     "autoScroll": "自動滚動",
@@ -5738,5 +5736,32 @@
     "loopbackDesc": "OpenCode 只監聽 127.0.0.1，並啟用隨機服務密碼。Web 版透過短期專用權杖和沙箱代理內嵌介面，不公開 OpenCode 連接埠，也不會向上游轉送面板 Cookie。",
     "providers": "Provider 清單",
     "loadFailed": "讀取 OpenCode 狀態失敗"
+  },
+  "wallet": {
+    "title": "錢包",
+    "desc": "查看 API 餘額並掃碼充值",
+    "balance": "目前餘額",
+    "usedQuota": "已用額度",
+    "account": "帳號",
+    "recharge": "充值",
+    "generateQR": "產生充值 QR 碼",
+    "rechargeHint": "掃碼後在手機端登入並選擇金額充值",
+    "scanQR": "請用手機掃碼充值",
+    "openTopup": "開啟充值頁",
+    "rechargeSuccess": "充值到帳",
+    "refreshBalance": "重新整理餘額",
+    "oneapiConfig": "OneAPI 連線",
+    "oneapiUrl": "OneAPI 位址",
+    "oneapiUrlHint": "雲端 OneAPI 服務位址，如 https://api.example.com",
+    "oneapiUsername": "登入帳號",
+    "oneapiUsernameHint": "預置的 OneAPI 登入帳號，用於查詢餘額",
+    "oneapiPassword": "登入密碼",
+    "oneapiPasswordHint": "該帳號的密碼，僅儲存在本機",
+    "saveConfig": "儲存設定",
+    "editConfig": "修改設定",
+    "testConnection": "測試連線",
+    "connectionOK": "連線正常",
+    "connectionFailed": "連線失敗",
+    "configRequired": "請先填寫 OneAPI 位址、帳號和密碼"
   }
 }

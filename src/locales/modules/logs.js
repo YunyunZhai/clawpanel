@@ -3,11 +3,7 @@ import { _ } from '../helper.js'
 export default {
   title: _('日志查看', 'Logs', '日誌查看', 'ログ', '로그', 'Nhật ký', 'Registros', '', 'Журналы', 'Journaux', 'Protokolle'),
   desc: _('查看 OpenClaw 各服务日志', 'View OpenClaw service logs', '查看 OpenClaw 各服務日誌', 'OpenClaw サービスログを表示', 'OpenClaw 서비스 로그 보기', 'Xem nhật ký dịch vụ OpenClaw', 'Ver registros del servicio OpenClaw', 'Ver logs do serviço OpenClaw', 'Просмотр журналов OpenClaw', 'Voir les journaux OpenClaw', 'OpenClaw-Protokolle anzeigen'),
-  tabGateway: _('Gateway 日志', 'Gateway Logs', 'Gateway 日誌', 'Gateway ログ', 'Gateway 로그', 'Gateway', 'Gateway', 'Gateway', 'Gateway', 'Gateway', 'Gateway'),
-  tabGatewayErr: _('Gateway 错误', 'Gateway Errors', 'Gateway 錯誤', 'Gateway エラー', 'Gateway 오류', 'Lỗi Gateway', 'Errores Gateway', 'Erros Gateway', 'Ошибки Gateway', 'Erreurs Gateway', 'Gateway-Fehler'),
-  tabGuardian: _('守护进程', 'Guardian', '守护處理程序', 'ガーディアン', '가디언'),
-  tabBackup: _('备份日志', 'Backup Logs', '備份日誌', 'バックアップログ', '백업 로그', 'Sao lưu', 'Respaldo', 'Backup', 'Резервное копирование', 'Sauvegarde', 'Backup'),
-  tabAudit: _('审计日志', 'Audit Logs', '審計日誌', '監査ログ', '감사 로그', 'Kiểm toán', 'Auditoría', 'Auditoria', 'Аудит', 'Audit', 'Audit'),
+  noFiles: _('日志目录为空或尚未创建', 'No log files found', '日誌目錄為空或尚未建立', 'ログディレクトリが空です', '로그 디렉터리가 비어 있습니다', 'Không có tệp nhật ký', 'Sin archivos de registro', 'Nenhum arquivo de log', 'Файлы журналов не найдены', 'Aucun fichier journal', 'Keine Protokolldateien'),
   searchPlaceholder: _('搜索日志...', 'Search logs...', '搜尋日誌...', 'ログを検索...', '로그 검색...', 'Tìm kiếm...', 'Buscar...', 'Pesquisar...', 'Поиск...', 'Rechercher...', 'Suchen...'),
   refresh: _('刷新', 'Refresh', '重新整理', '更新', '새로고침', 'Làm mới', 'Actualizar', 'Atualizar', 'Обновить', 'Actualiser', 'Aktualisieren'),
   autoScroll: _('自动滚动', 'Auto scroll', '自動滚動', '自動スクロール', '자동 스크롤', 'Tự động cuộn', 'Auto-desplazar', 'Rolagem auto', 'Автопрокрутка', 'Défilement auto', 'Auto-Scrollen'),

@@ -153,7 +153,8 @@
     "about": "À propos",
     "glossary": "Glossaire",
     "notifications": "Push",
-    "setup": "Configuration initiale"
+    "setup": "Configuration initiale",
+    "wallet": "Portefeuille"
   },
   "instance": {
     "local": "Local",
@@ -267,6 +268,7 @@
     "noLogs": "Aucun journal",
     "openControlUIFail": "Failed to open Control UI",
     "starting": "Démarrage...",
+    "startingHint": "Node process starting, may take a few seconds",
     "gwStartSent": "Gateway start command sent",
     "startFail": "Start failed",
     "stopping": "Arrêt...",
@@ -2940,11 +2942,7 @@
   "logs": {
     "title": "Journaux",
     "desc": "Voir les journaux OpenClaw",
-    "tabGateway": "Gateway",
-    "tabGatewayErr": "Erreurs Gateway",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Sauvegarde",
-    "tabAudit": "Audit",
+    "noFiles": "Aucun fichier journal",
     "searchPlaceholder": "Rechercher...",
     "refresh": "Actualiser",
     "autoScroll": "Défilement auto",
@@ -5738,5 +5736,32 @@
     "loopbackDesc": "OpenCode listens only on 127.0.0.1 and uses a random service password. Web deployments embed it through a sandboxed proxy with a short-lived capability; the OpenCode port stays private and panel cookies are not forwarded upstream.",
     "providers": "Provider List",
     "loadFailed": "Failed to read OpenCode status"
+  },
+  "wallet": {
+    "title": "Portefeuille",
+    "desc": "Voir le solde API et recharger par QR code",
+    "balance": "Solde actuel",
+    "usedQuota": "Quota utilisée",
+    "account": "Compte",
+    "recharge": "Recharger",
+    "generateQR": "Générer un QR de recharge",
+    "rechargeHint": "Connectez-vous sur votre téléphone après le scan et choisissez un montant",
+    "scanQR": "Scannez pour recharger",
+    "openTopup": "Ouvrir la page de recharge",
+    "rechargeSuccess": "Recharge reçue",
+    "refreshBalance": "Actualiser le solde",
+    "oneapiConfig": "Connexion OneAPI",
+    "oneapiUrl": "URL OneAPI",
+    "oneapiUrlHint": "Adresse du serveur OneAPI",
+    "oneapiUsername": "Identifiant",
+    "oneapiUsernameHint": "Identifiant OneAPI préconfiguré, pour lire le solde",
+    "oneapiPassword": "Mot de passe",
+    "oneapiPasswordHint": "Mot de passe du compte, stocké uniquement en local",
+    "saveConfig": "Enregistrer",
+    "editConfig": "Modifier",
+    "testConnection": "Tester la connexion",
+    "connectionOK": "Connexion OK",
+    "connectionFailed": "Échec de la connexion",
+    "configRequired": "Renseignez d'abord l'URL, l'identifiant et le mot de passe OneAPI"
   }
 }

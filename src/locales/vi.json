@@ -153,7 +153,8 @@
     "about": "Giới thiệu",
     "glossary": "Thuật ngữ",
     "notifications": "Đẩy",
-    "setup": "Thiết lập"
+    "setup": "Thiết lập",
+    "wallet": "Ví"
   },
   "instance": {
     "local": "Cục bộ",
@@ -267,6 +268,7 @@
     "noLogs": "Không có nhật ký",
     "openControlUIFail": "Failed to open Control UI",
     "starting": "Đang khởi động...",
+    "startingHint": "Node process starting, may take a few seconds",
     "gwStartSent": "Gateway start command sent",
     "startFail": "Start failed",
     "stopping": "Đang dừng...",
@@ -2940,11 +2942,7 @@
   "logs": {
     "title": "Nhật ký",
     "desc": "Xem nhật ký dịch vụ OpenClaw",
-    "tabGateway": "Gateway",
-    "tabGatewayErr": "Lỗi Gateway",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Sao lưu",
-    "tabAudit": "Kiểm toán",
+    "noFiles": "Không có tệp nhật ký",
     "searchPlaceholder": "Tìm kiếm...",
     "refresh": "Làm mới",
     "autoScroll": "Tự động cuộn",
@@ -5738,5 +5736,32 @@
     "loopbackDesc": "OpenCode listens only on 127.0.0.1 and uses a random service password. Web deployments embed it through a sandboxed proxy with a short-lived capability; the OpenCode port stays private and panel cookies are not forwarded upstream.",
     "providers": "Provider List",
     "loadFailed": "Failed to read OpenCode status"
+  },
+  "wallet": {
+    "title": "Ví",
+    "desc": "Xem số dư API và nạp tiền bằng mã QR",
+    "balance": "Số dư hiện tại",
+    "usedQuota": "Đã dùng",
+    "account": "Tài khoản",
+    "recharge": "Nạp tiền",
+    "generateQR": "Tạo mã QR nạp tiền",
+    "rechargeHint": "Sau khi quét, đăng nhập trên điện thoại và chọn số tiền",
+    "scanQR": "Quét mã để nạp tiền",
+    "openTopup": "Mở trang nạp tiền",
+    "rechargeSuccess": "Đã nạp thành công",
+    "refreshBalance": "Làm mới số dư",
+    "oneapiConfig": "Kết nối OneAPI",
+    "oneapiUrl": "Địa chỉ OneAPI",
+    "oneapiUrlHint": "Địa chỉ máy chủ OneAPI",
+    "oneapiUsername": "Tên đăng nhập",
+    "oneapiUsernameHint": "Tên đăng nhập OneAPI có sẵn, dùng để xem số dư",
+    "oneapiPassword": "Mật khẩu đăng nhập",
+    "oneapiPasswordHint": "Mật khẩu tài khoản, chỉ lưu trên máy này",
+    "saveConfig": "Lưu cấu hình",
+    "editConfig": "Sửa cấu hình",
+    "testConnection": "Kiểm tra kết nối",
+    "connectionOK": "Kết nối bình thường",
+    "connectionFailed": "Kết nối thất bại",
+    "configRequired": "Vui lòng nhập địa chỉ, tên đăng nhập và mật khẩu OneAPI"
   }
 }

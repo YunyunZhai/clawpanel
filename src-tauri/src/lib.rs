@@ -5,8 +5,8 @@ mod utils;
 
 use commands::{
     agent, assistant, cli_conflict, config, deepseek_harness, device, diagnose, extensions, hermes,
-    hermes_providers, logs, media, memory, messaging, model_channels, opencode, pairing, portable,
-    service, site_api, skills, update,
+    hermes_providers, logs, media, memory, messaging, model_channels, oneapi, opencode, pairing,
+    portable, service, site_api, skills, update,
 };
 
 pub fn run() {
@@ -136,6 +136,11 @@ pub fn run() {
             config::doctor_fix,
             config::doctor_check,
             config::relaunch_app,
+            // OneAPI 钱包（余额 / 充值 / 连接配置）
+            oneapi::oneapi_get_balance,
+            oneapi::oneapi_get_config,
+            oneapi::oneapi_save_config,
+            oneapi::oneapi_test_connection,
             site_api::check_site_announcements,
             // 设备密钥 + Gateway 握手
             device::create_connect_frame,
@@ -164,6 +169,7 @@ pub fn run() {
             // 日志
             logs::read_log_tail,
             logs::search_log,
+            logs::list_log_files,
             // 记忆文件
             memory::list_memory_files,
             memory::read_memory_file,

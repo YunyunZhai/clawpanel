@@ -153,7 +153,8 @@
     "about": "About",
     "glossary": "Glossary",
     "notifications": "Push",
-    "setup": "Setup"
+    "setup": "Setup",
+    "wallet": "Wallet"
   },
   "instance": {
     "local": "Local",
@@ -267,6 +268,7 @@
     "noLogs": "No logs",
     "openControlUIFail": "Failed to open Control UI",
     "starting": "Starting...",
+    "startingHint": "Node process starting, may take a few seconds",
     "gwStartSent": "Gateway start command sent",
     "startFail": "Start failed",
     "stopping": "Stopping...",
@@ -2940,11 +2942,7 @@
   "logs": {
     "title": "Logs",
     "desc": "View OpenClaw service logs",
-    "tabGateway": "Gateway Logs",
-    "tabGatewayErr": "Gateway Errors",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Backup Logs",
-    "tabAudit": "Audit Logs",
+    "noFiles": "No log files found",
     "searchPlaceholder": "Search logs...",
     "refresh": "Refresh",
     "autoScroll": "Auto scroll",
@@ -5738,5 +5736,32 @@
     "loopbackDesc": "OpenCode listens only on 127.0.0.1 and uses a random service password. Web deployments embed it through a sandboxed proxy with a short-lived capability; the OpenCode port stays private and panel cookies are not forwarded upstream.",
     "providers": "Provider List",
     "loadFailed": "Failed to read OpenCode status"
+  },
+  "wallet": {
+    "title": "Wallet",
+    "desc": "Check your API balance and top up by QR code",
+    "balance": "Current balance",
+    "usedQuota": "Used quota",
+    "account": "Account",
+    "recharge": "Top up",
+    "generateQR": "Generate top-up QR",
+    "rechargeHint": "Scan, then log in on your phone and choose an amount",
+    "scanQR": "Scan to top up",
+    "openTopup": "Open top-up page",
+    "rechargeSuccess": "Top-up received",
+    "refreshBalance": "Refresh balance",
+    "oneapiConfig": "OneAPI connection",
+    "oneapiUrl": "OneAPI URL",
+    "oneapiUrlHint": "Your cloud OneAPI server, e.g. https://api.example.com",
+    "oneapiUsername": "Login username",
+    "oneapiUsernameHint": "Pre-provisioned OneAPI username, used to read balance",
+    "oneapiPassword": "Login password",
+    "oneapiPasswordHint": "The account password, stored only on this device",
+    "saveConfig": "Save",
+    "editConfig": "Edit",
+    "testConnection": "Test connection",
+    "connectionOK": "Connection OK",
+    "connectionFailed": "Connection failed",
+    "configRequired": "Enter the OneAPI URL, username and password first"
   }
 }

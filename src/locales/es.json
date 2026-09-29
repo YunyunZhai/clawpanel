@@ -153,7 +153,8 @@
     "about": "Acerca de",
     "glossary": "Glosario",
     "notifications": "Push",
-    "setup": "Configuración inicial"
+    "setup": "Configuración inicial",
+    "wallet": "Cartera"
   },
   "instance": {
     "local": "Local",
@@ -267,6 +268,7 @@
     "noLogs": "Sin registros",
     "openControlUIFail": "Failed to open Control UI",
     "starting": "Iniciando...",
+    "startingHint": "Node process starting, may take a few seconds",
     "gwStartSent": "Gateway start command sent",
     "startFail": "Start failed",
     "stopping": "Deteniendo...",
@@ -2940,11 +2942,7 @@
   "logs": {
     "title": "Registros",
     "desc": "Ver registros del servicio OpenClaw",
-    "tabGateway": "Gateway",
-    "tabGatewayErr": "Errores Gateway",
-    "tabGuardian": "Guardian",
-    "tabBackup": "Respaldo",
-    "tabAudit": "Auditoría",
+    "noFiles": "Sin archivos de registro",
     "searchPlaceholder": "Buscar...",
     "refresh": "Actualizar",
     "autoScroll": "Auto-desplazar",
@@ -5738,5 +5736,32 @@
     "loopbackDesc": "OpenCode listens only on 127.0.0.1 and uses a random service password. Web deployments embed it through a sandboxed proxy with a short-lived capability; the OpenCode port stays private and panel cookies are not forwarded upstream.",
     "providers": "Provider List",
     "loadFailed": "Failed to read OpenCode status"
+  },
+  "wallet": {
+    "title": "Cartera",
+    "desc": "Ver saldo de API y recargar con código QR",
+    "balance": "Saldo actual",
+    "usedQuota": "Cuota usada",
+    "account": "Cuenta",
+    "recharge": "Recargar",
+    "generateQR": "Generar código QR de recarga",
+    "rechargeHint": "Inicia sesión en el teléfono tras escanear y elige un importe",
+    "scanQR": "Escanea para recargar",
+    "openTopup": "Abrir página de recarga",
+    "rechargeSuccess": "Recarga completada",
+    "refreshBalance": "Actualizar saldo",
+    "oneapiConfig": "Conexión OneAPI",
+    "oneapiUrl": "URL de OneAPI",
+    "oneapiUrlHint": "Dirección del servidor OneAPI",
+    "oneapiUsername": "Usuario",
+    "oneapiUsernameHint": "Usuario de OneAPI preasignado, para consultar el saldo",
+    "oneapiPassword": "Contraseña",
+    "oneapiPasswordHint": "Contraseña de la cuenta, solo en este dispositivo",
+    "saveConfig": "Guardar configuración",
+    "editConfig": "Editar configuración",
+    "testConnection": "Probar conexión",
+    "connectionOK": "Conexión correcta",
+    "connectionFailed": "Error de conexión",
+    "configRequired": "Introduce la URL, el usuario y la contraseña de OneAPI"
   }
 }
