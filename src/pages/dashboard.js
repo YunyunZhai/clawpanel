@@ -115,6 +115,11 @@ export function cleanup() {
     window.removeEventListener('openclaw:runtime-changed', _dashboardRuntimeRefreshHandler)
     _dashboardRuntimeRefreshHandler = null
   }
+  // 清除模块级缓存，确保下次进入 Dashboard 时重新拉取版本和运行时数据。
+  // 否则在 about 页升级/降级后回到 dashboard 会显示旧的运行时版本号。
+  _dashboardInitialized = false
+  _dashboardVersionCache = null
+  _dashboardStatusSummaryCache = null
   // 使仍在执行的旧页面请求失效，并丢弃尚未开始的刷新。
   _dashboardPendingLoad = null
   _dashboardLoadSeq++
