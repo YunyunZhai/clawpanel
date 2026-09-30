@@ -172,6 +172,7 @@ pub fn run() {
             logs::read_log_tail,
             logs::search_log,
             logs::list_log_files,
+            logs::clear_log,
             // 记忆文件
             memory::list_memory_files,
             memory::read_memory_file,

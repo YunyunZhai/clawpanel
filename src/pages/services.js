@@ -93,9 +93,10 @@ let lastVersionInfo = null
 async function loadVersion(page) {
   const bar = page.querySelector('#version-bar')
   try {
-    const [info, panelConfig] = await Promise.all([
+    const [info, panelConfig, install] = await Promise.all([
       api.getVersionInfo(),
       api.readPanelConfig().catch(() => ({})),
+      api.checkInstallation().catch(() => null),
     ])
     lastVersionInfo = info
     const ver = info.current || t('common.unknown')
@@ -107,6 +108,7 @@ async function loadVersion(page) {
     const policyNote = aheadOfRecommended
       ? t('services.policyAhead', { ver, recommended: info.recommended })
       : t('services.policyDefault')
+    const installPath = install?.path ? escapeHtml(install.path) : '-'
 
     if (isInDocker()) {
       bar.innerHTML = `
@@ -125,7 +127,7 @@ async function loadVersion(page) {
       `
     } else {
       bar.innerHTML = `
-        <div class="stat-cards" style="margin-bottom:var(--space-lg)">
+        <div class="stat-cards" style="margin-bottom:var(--space-lg);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--space-md)">
           <div class="stat-card">
             <div class="stat-card-header">
               <span class="stat-card-label">${t('services.currentVersion')}</span>
@@ -140,10 +142,18 @@ async function loadVersion(page) {
             <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-sm);flex-wrap:wrap">
               ${aheadOfRecommended ? `<button class="btn btn-primary btn-sm" data-action="upgrade">${t('services.rollbackToRecommended')}</button>` : driftFromRecommended ? `<button class="btn btn-primary btn-sm" data-action="upgrade">${t('services.switchToRecommended')}</button>` : ''}
               ${canUpgradeLatest ? `<button class="btn btn-primary btn-sm" data-action="upgrade-latest" data-version="${escapeHtml(info.latest)}">${t('services.upgradeToLatest')}</button>` : ''}
+              ${info.current ? `<button class="btn btn-secondary btn-sm" data-action="switch-version">${t('services.switchVersion')}</button>` : ''}
             </div>
             <div style="margin-top:8px;font-size:var(--font-size-xs);color:var(--text-tertiary);line-height:1.6">
               ${policyNote}
             </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <span class="stat-card-label">${t('services.installPath')}</span>
+            </div>
+            <div class="stat-card-value" style="font-size:var(--font-size-sm);word-break:break-all">${installPath}</div>
+            <div class="stat-card-meta">${install?.installed ? t('services.configured') : t('services.notConfigured')}</div>
           </div>
         </div>
       `
@@ -634,6 +644,9 @@ function bindEvents(page) {
         case 'resolve-foreign-gateway':
           await openGatewayConflict(page)
           break
+        case 'switch-version':
+          await handleSwitchVersion(page)
+          break
         case 'docker-refresh':
           await loadDockerManager(page)
           break
@@ -993,6 +1006,65 @@ async function doUpgradeWithModal(source, page, version = null, method = 'auto')
     const fullLog = modal.getLogText() + '\n' + errStr
     const diagnosis = diagnoseInstallError(fullLog)
     modal.setError(diagnosis.title)
+  }
+}
+
+async function handleSwitchVersion(page) {
+  if (!lastVersionInfo?.current) { toast(t('services.versionNotInstalled'), 'warning'); return }
+
+  const overlay = document.createElement('div')
+  overlay.className = 'modal-overlay'
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:460px">
+      <div class="modal-title">${t('services.switchVersion')}</div>
+      <div style="margin:16px 0">
+        <label style="font-size:var(--font-size-sm);color:var(--text-secondary);display:block;margin-bottom:8px">${t('services.selectVersion')}</label>
+        <select id="sv-version-select" class="form-input" style="width:100%">
+          <option value="">${t('common.loading')}</option>
+        </select>
+      </div>
+      <div id="sv-hint" style="font-size:var(--font-size-xs);color:var(--text-tertiary);min-height:18px;margin-bottom:16px"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary btn-sm" id="sv-cancel">${t('common.cancel')}</button>
+        <button class="btn btn-primary btn-sm" id="sv-confirm" disabled>${t('services.switchVersion')}</button>
+      </div>
+    </div>
+  `
+  document.body.appendChild(overlay)
+  const select = overlay.querySelector('#sv-version-select')
+  const confirmBtn = overlay.querySelector('#sv-confirm')
+  const hint = overlay.querySelector('#sv-hint')
+
+  const close = () => overlay.remove()
+  overlay.querySelector('#sv-cancel').onclick = close
+  overlay.addEventListener('click', e => { if (e.target === overlay) close() })
+
+  let versions = []
+  try {
+    versions = await api.listOpenclawVersions('official')
+  } catch (e) {
+    select.innerHTML = `<option value="">${t('common.loadFailed')}</option>`
+    return
+  }
+  if (!versions.length) { select.innerHTML = `<option value="">${t('services.noVersions')}</option>`; return }
+
+  select.innerHTML = versions.map(v => {
+    const isCurrent = v === lastVersionInfo.current
+    return `<option value="${escapeHtml(v)}">${escapeHtml(v)}${isCurrent ? ` (${t('services.currentVersionLabel')})` : ''}</option>`
+  }).join('')
+
+  select.onchange = () => {
+    const v = select.value
+    if (!v) { confirmBtn.disabled = true; hint.textContent = ''; return }
+    confirmBtn.disabled = false
+    hint.textContent = v === lastVersionInfo.current ? t('services.sameVersionHint') : ''
+  }
+
+  confirmBtn.onclick = () => {
+    const v = select.value
+    if (!v) return
+    close()
+    doUpgradeWithModal('official', page, v)
   }
 }
 

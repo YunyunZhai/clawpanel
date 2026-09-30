@@ -222,4 +222,7 @@ export default {
   addAll: _('全部加入', 'Add All', '全部加入'),
   clearAll: _('清空全部', 'Clear All', '清空全部'),
   confirmClearAll: _('确定清空所有备选模型？主模型不会被影响。', 'Clear all fallback models? Primary model is not affected.', '確定清空所有備選模型？主模型不會被影響。'),
+  channelsSectionTitle: _('模型渠道', 'Model Channels', '模型渠道'),
+  channelsSectionHint: _('统一管理接入配置，一键同步到 OpenClaw', 'Manage provider settings in one place and sync to OpenClaw', '統一管理接入設定，一鍵同步到 OpenClaw'),
+  channelsAddChannel: _('管理渠道', 'Manage Channels', '管理渠道'),
 }

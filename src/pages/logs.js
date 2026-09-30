@@ -7,6 +7,7 @@
  */
 import { api, invalidate } from '../lib/tauri-api.js'
 import { toast } from '../components/toast.js'
+import { showConfirm } from '../components/modal.js'
 import { humanizeError } from '../lib/humanize-error.js'
 import { t } from '../lib/i18n.js'
 
@@ -43,6 +44,7 @@ export async function render() {
     <div class="log-toolbar">
       <input type="text" class="form-input" id="log-search" placeholder="${t('logs.searchPlaceholder')}" style="max-width:300px">
       <button class="btn btn-secondary btn-sm" id="btn-refresh">${t('logs.refresh')}</button>
+      <button class="btn btn-danger btn-sm" id="btn-clear-log" disabled>${t('logs.clearLog')}</button>
       <label style="display:flex;align-items:center;gap:6px;font-size:var(--font-size-sm);color:var(--text-secondary)">
         <input type="checkbox" id="log-autoscroll" checked> ${t('logs.autoScroll')}
       </label>
@@ -76,6 +78,8 @@ export async function render() {
         if (name === currentFile) return
         currentFile = name
         page.querySelector('#log-search').value = ''
+        const clearBtn = page.querySelector('#btn-clear-log')
+        if (clearBtn) clearBtn.disabled = false
         renderFileList()
         loadLog()
       }
@@ -155,6 +159,22 @@ export async function render() {
   page.querySelector('#btn-refresh').onclick = async () => {
     clearTimeout(_searchTimer)
     page.querySelector('#log-search').value = ''
+    invalidate('read_log_tail', 'list_log_files')
+    await loadFiles()
+    await loadLog()
+  }
+
+  // 清除当前日志按钮
+  page.querySelector('#btn-clear-log').onclick = async () => {
+    if (!currentFile) return
+    const ok = await showConfirm(t('logs.clearConfirm', { name: currentFile }))
+    if (!ok) return
+    try {
+      await api.clearLog(currentFile)
+      toast(t('logs.cleared', { name: currentFile }), 'success')
+    } catch (e) {
+      toast(humanizeError(e, t('logs.clearFailed')), 'error')
+    }
     invalidate('read_log_tail', 'list_log_files')
     await loadFiles()
     await loadLog()

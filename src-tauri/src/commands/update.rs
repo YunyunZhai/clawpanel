@@ -11,7 +11,7 @@ pub fn update_dir() -> PathBuf {
 }
 
 /// 更新清单 URL（GitHub Pages 托管）
-const LATEST_JSON_URL: &str = "https://claw.qt.cool/update/latest.json";
+const LATEST_JSON_URL: &str = "https://aigod.xin/update/latest.json";
 
 /// 检查前端是否有新版本可用
 #[tauri::command]

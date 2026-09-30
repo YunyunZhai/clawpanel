@@ -531,7 +531,16 @@
     "cleanupUninstalling": "Uninstalling, please wait...",
     "cleanupUninstallFailed": "Uninstall failed",
     "protocolBadge": "Proto v{proto}",
-    "protocolBadgeTitle": "WebSocket handshake protocol version negotiated with Gateway (independent of the device signature payload v3 format)"
+    "protocolBadgeTitle": "WebSocket handshake protocol version negotiated with Gateway (independent of the device signature payload v3 format)",
+    "installPath": "Install Path",
+    "configured": "Configured",
+    "notConfigured": "Not configured",
+    "switchVersion": "Switch Version",
+    "selectVersion": "Select a version to switch",
+    "currentVersionLabel": "Current",
+    "sameVersionHint": "Same as current, will reinstall",
+    "noVersions": "No versions available",
+    "versionNotInstalled": "OpenClaw not installed, cannot switch version"
   },
   "settings": {
     "title": "Paramètres du panneau",
@@ -877,7 +886,10 @@
     "add": "Add",
     "addAll": "Add All",
     "clearAll": "Clear All",
-    "confirmClearAll": "Clear all fallback models? Primary model is not affected."
+    "confirmClearAll": "Clear all fallback models? Primary model is not affected.",
+    "channelsSectionTitle": "Model Channels",
+    "channelsSectionHint": "Manage provider settings in one place and sync to OpenClaw",
+    "channelsAddChannel": "Manage Channels"
   },
   "agents": {
     "title": "Gestion des Agents",
@@ -2950,7 +2962,11 @@
     "empty": "Aucun journal",
     "loadFailed": "Échec du chargement",
     "noResults": "Aucun résultat",
-    "searchFailed": "Échec de la recherche"
+    "searchFailed": "Échec de la recherche",
+    "clearLog": "Effacer le journal",
+    "clearConfirm": "Confirmer la suppression de ${name} ?",
+    "cleared": "${name} effacé",
+    "clearFailed": "Échec de la suppression"
   },
   "assistant": {
     "modeChat": "Chat",

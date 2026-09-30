@@ -20,7 +20,7 @@ export async function render() {
       <img src="/images/logo-brand.png" alt="ClawPanel" style="height:48px;width:auto">
       <div>
         <h1 class="page-title" style="margin:0">ClawPanel</h1>
-        <p class="page-desc" style="margin:0">${t('about.subtitle')} · <a href="https://claw.qt.cool" target="_blank" rel="noopener" style="color:var(--primary)">claw.qt.cool</a></p>
+        <p class="page-desc" style="margin:0">${t('about.subtitle')} · <a href="https://aigod.xin" target="_blank" rel="noopener" style="color:var(--primary)">aigod.xin</a></p>
       </div>
     </div>
     <div class="stat-cards" id="version-cards">
@@ -597,11 +597,11 @@ function escapeAttr(value) {
   return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function safeExternalHref(raw, fallback = 'https://claw.qt.cool') {
+function safeExternalHref(raw, fallback = 'https://aigod.xin') {
   try {
-    const url = new URL(String(raw || '').trim() || fallback, 'https://claw.qt.cool')
+    const url = new URL(String(raw || '').trim() || fallback, 'https://aigod.xin')
     const host = url.hostname.toLowerCase()
-    if (host === 'claw.qt.cool') {
+    if (host === 'aigod.xin') {
       url.protocol = 'https:'
       return url.toString()
     }
@@ -824,9 +824,9 @@ function renderProjects(page) {
 }
 
 const LINKS = [
-  { label: t('about.linkWebsite'), url: 'https://claw.qt.cool', primary: true },
-  { label: t('about.linkClawApp'), url: 'https://clawapp.qt.cool' },
-  { label: t('about.linkCftunnel'), url: 'https://cftunnel.qt.cool' },
+  { label: t('about.linkWebsite'), url: 'https://aigod.xin', primary: true },
+  { label: t('about.linkClawApp'), url: 'https://aigod.xin' },
+  { label: t('about.linkCftunnel'), url: 'https://aigod.xin' },
 ]
 
 function renderContribute(page) {
@@ -872,7 +872,7 @@ function renderCompany(page) {
         </div>
         <div style="padding:12px;border-radius:var(--radius-md);border:1px solid var(--border-primary);background:var(--bg-secondary)">
           <div style="color:var(--text-tertiary);font-size:var(--font-size-xs);margin-bottom:4px">${t('about.productWebsite')}</div>
-          <a href="https://claw.qt.cool" target="_blank" rel="noopener" style="color:var(--accent)">claw.qt.cool</a>
+          <a href="https://aigod.xin" target="_blank" rel="noopener" style="color:var(--accent)">aigod.xin</a>
         </div>
         <div style="padding:12px;border-radius:var(--radius-md);border:1px solid var(--border-primary);background:var(--bg-secondary)">
           <div style="color:var(--text-tertiary);font-size:var(--font-size-xs);margin-bottom:4px">${t('about.openSourceRepo')}</div>

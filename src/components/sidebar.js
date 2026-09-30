@@ -72,21 +72,6 @@ function NAV_ITEMS_FULL() { return [
       { route: '/cron', label: t('sidebar.cron'), icon: 'clock', gate: 'cron' },
       { route: '/usage', label: t('sidebar.usage'), icon: 'bar-chart' },
     ]
-  },
-  {
-    section: t('sidebar.sectionExtension'),
-    items: [
-      { route: '/skills', label: t('sidebar.skills'), icon: 'skills', gate: 'skills' },
-      { route: '/plugin-hub', label: t('sidebar.pluginHub'), icon: 'extensions' },
-    ]
-  },
-  {
-    section: '',
-    items: [
-      { route: '/settings', label: t('sidebar.settings'), icon: 'settings' },
-      { route: '/chat-debug', label: t('sidebar.checkRepair'), icon: 'diagnose' },
-      { route: '/about', label: t('sidebar.about'), icon: 'about' },
-    ]
   }
 ] }
 
@@ -102,8 +87,6 @@ function NAV_ITEMS_SETUP() { return [
     section: '',
     items: [
       { route: '/settings', label: t('sidebar.settings'), icon: 'settings' },
-      { route: '/chat-debug', label: t('sidebar.chatDebug'), icon: 'debug' },
-      { route: '/about', label: t('sidebar.about'), icon: 'about' },
     ]
   }
 ] }
@@ -120,7 +103,6 @@ function NAV_ITEMS_ENGINE_SELECT() { return [
     section: '',
     items: [
       { route: '/settings', label: t('sidebar.settings'), icon: 'settings' },
-      { route: '/about', label: t('sidebar.about'), icon: 'about' },
     ]
   }
 ] }
@@ -128,8 +110,8 @@ function NAV_ITEMS_ENGINE_SELECT() { return [
 function COMMON_NAV_ITEMS() { return [{
   section: t('sidebar.sectionCommon'),
   items: [
-    { route: '/model-channels', label: t('sidebar.modelChannels'), icon: 'channels-hub' },
-    { route: '/media', label: t('sidebar.media'), icon: 'media' },
+    { route: '/wallet', label: t('sidebar.wallet'), icon: 'wallet' },
+    { route: '/settings', label: t('sidebar.settings'), icon: 'settings' },
   ],
 }] }
 
@@ -166,6 +148,7 @@ const ICONS = {
   debug: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>',
   'route-map': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h10M7 18h10M5 8v8M19 8v8"/></svg>',
   diagnose: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+  wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4z"/></svg>',
 }
 
 let _delegated = false
@@ -324,7 +307,7 @@ export function renderSidebar(el) {
         </div>
       </div>
       <div class="sidebar-meta">
-        <a href="https://claw.qt.cool" target="_blank" rel="noopener" class="sidebar-link">claw.qt.cool</a>
+        <a href="https://aigod.xin" target="_blank" rel="noopener" class="sidebar-link">aigod.xin</a>
         <span class="sidebar-version">v${APP_VERSION}</span>
       </div>
     </div>

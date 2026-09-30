@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-pub const SITE_BASE_URL: &str = "https://claw.qt.cool";
+pub const SITE_BASE_URL: &str = "https://aigod.xin";
 
 const LATEST_PATH: &str = "/api/v1/latest";
 const ANNOUNCEMENTS_PATH: &str = "/api/v1/announcements";
@@ -50,7 +50,7 @@ pub fn normalize_public_url(raw: &str) -> Option<String> {
     let mut url = Url::parse(trimmed).ok()?;
     let host = url.host_str()?.to_ascii_lowercase();
     match host.as_str() {
-        "claw.qt.cool" => {
+        "aigod.xin" => {
             let _ = url.set_scheme("https");
             Some(url.to_string())
         }
@@ -483,7 +483,7 @@ mod tests {
                 ("arch", "x64".to_string()),
             ],
         );
-        assert!(url.starts_with("https://claw.qt.cool/api/v1/latest?"));
+        assert!(url.starts_with("https://aigod.xin/api/v1/latest?"));
         assert!(url.contains("platform=windows"));
         assert!(url.contains("arch=x64"));
         assert!(url.contains("_t="));
@@ -500,7 +500,7 @@ mod tests {
                 ("surface", "client".to_string()),
             ],
         );
-        assert!(url.starts_with("https://claw.qt.cool/api/v1/announcements?"));
+        assert!(url.starts_with("https://aigod.xin/api/v1/announcements?"));
         assert!(url.contains("app=ClawPanel"));
         assert!(url.contains("version=0.17.0"));
         assert!(url.contains("locale=zh-CN"));
@@ -519,8 +519,8 @@ mod tests {
     #[test]
     fn normalize_public_url_allows_only_site_and_github() {
         assert_eq!(
-            normalize_public_url("http://claw.qt.cool/api/v1/download/1").as_deref(),
-            Some("https://claw.qt.cool/api/v1/download/1")
+            normalize_public_url("http://aigod.xin/api/v1/download/1").as_deref(),
+            Some("https://aigod.xin/api/v1/download/1")
         );
         assert_eq!(
             normalize_public_url("/api/v1/download/1").as_deref(),

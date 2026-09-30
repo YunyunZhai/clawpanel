@@ -154,7 +154,7 @@
     "glossary": "术语",
     "notifications": "推送通知",
     "setup": "初始设置",
-    "wallet": "钱包"
+    "wallet": "账号余额"
   },
   "instance": {
     "local": "本机",
@@ -531,7 +531,16 @@
     "cleanupUninstalling": "正在卸载，请稍候...",
     "cleanupUninstallFailed": "卸载失败",
     "protocolBadge": "协议 v{proto}",
-    "protocolBadgeTitle": "当前 Gateway 与 ClawPanel 协商出的 WebSocket 握手协议版本 (与设备签名 payload 的 v3 格式无关)"
+    "protocolBadgeTitle": "当前 Gateway 与 ClawPanel 协商出的 WebSocket 握手协议版本 (与设备签名 payload 的 v3 格式无关)",
+    "installPath": "安装路径",
+    "configured": "已配置",
+    "notConfigured": "未配置",
+    "switchVersion": "切换版本",
+    "selectVersion": "选择要切换的版本",
+    "currentVersionLabel": "当前版本",
+    "sameVersionHint": "与当前版本相同，将重新安装",
+    "noVersions": "未获取到可用版本",
+    "versionNotInstalled": "尚未安装 OpenClaw，无法切换版本"
   },
   "settings": {
     "title": "面板设置",
@@ -877,7 +886,10 @@
     "add": "加入",
     "addAll": "全部加入",
     "clearAll": "清空全部",
-    "confirmClearAll": "确定清空所有备选模型？主模型不会被影响。"
+    "confirmClearAll": "确定清空所有备选模型？主模型不会被影响。",
+    "channelsSectionTitle": "模型渠道",
+    "channelsSectionHint": "统一管理接入配置，一键同步到 OpenClaw",
+    "channelsAddChannel": "管理渠道"
   },
   "agents": {
     "title": "Agent 管理",
@@ -2950,7 +2962,11 @@
     "empty": "暂无日志",
     "loadFailed": "加载日志失败",
     "noResults": "未找到匹配结果",
-    "searchFailed": "搜索失败"
+    "searchFailed": "搜索失败",
+    "clearLog": "清除日志",
+    "clearConfirm": "确认要清除日志文件 ${name}？此操作不可撤销。",
+    "cleared": "日志 ${name} 已清除",
+    "clearFailed": "清除日志失败"
   },
   "assistant": {
     "modeChat": "聊天",

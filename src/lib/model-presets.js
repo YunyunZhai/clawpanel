@@ -46,8 +46,8 @@ export function modelApiTypeOptions(value) {
 
 // 服务商快捷预设
 export const PROVIDER_PRESETS = [
-  { key: 'qtcool', label: '晴辰云', badge: '免费测试', baseUrl: 'https://gpt.qt.cool/v1', api: 'openai-completions', site: 'https://gpt.qt.cool/', desc: 'ClawPanel 配套免费签到测试平台，适合体验和功能验证' },
-  { key: 'ciyapi', label: '词元 API', badge: '赞助', sponsored: true, baseUrl: 'https://ciyapi.79tian.com/v1', api: 'openai-completions', site: 'https://ciyapi.79tian.com/', desc: '支持 GPT、Claude 等主流前沿模型；充值 ¥1 到账 $1 平台额度，部分线路按折扣计费' },
+  { key: 'qtcool', label: '晴辰云', hidden: true, badge: '免费测试', baseUrl: 'https://gpt.qt.cool/v1', api: 'openai-completions', site: 'https://gpt.qt.cool/', desc: 'ClawPanel 配套免费签到测试平台，适合体验和功能验证' },
+  { key: 'ciyapi', label: '词元 API', hidden: true, badge: '赞助', sponsored: true, baseUrl: 'https://ciyapi.79tian.com/v1', api: 'openai-completions', site: 'https://ciyapi.79tian.com/', desc: '支持 GPT、Claude 等主流前沿模型；充值 ¥1 到账 $1 平台额度，部分线路按折扣计费' },
   { key: 'shengsuanyun', label: '胜算云', baseUrl: 'https://router.shengsuanyun.com/api/v1', api: 'openai-completions', site: 'https://www.shengsuanyun.com/?from=CH_4BVI0BM2', desc: '国内知名 AI 模型聚合平台，支持多种主流模型' },
   { key: 'siliconflow', label: '硅基流动', baseUrl: 'https://api.siliconflow.cn/v1', api: 'openai-completions', site: 'https://cloud.siliconflow.cn/i/PFrw2an5', desc: '高性价比推理平台，支持 DeepSeek、Qwen 等开源模型' },
   { key: 'volcengine', label: '火山引擎', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', api: 'openai-completions', site: 'https://volcengine.com/L/Ph1OP5I3_GY', desc: '字节跳动旗下云平台，支持豆包等模型' },

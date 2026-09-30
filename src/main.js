@@ -117,11 +117,11 @@ function renderReleaseNotesMarkdown(markdown) {
   return sanitizeReleaseNotesHtml(renderMarkdown(text))
 }
 
-function safeExternalHref(raw, fallback = 'https://claw.qt.cool') {
+function safeExternalHref(raw, fallback = 'https://aigod.xin') {
   try {
-    const url = new URL(String(raw || '').trim() || fallback, 'https://claw.qt.cool')
+    const url = new URL(String(raw || '').trim() || fallback, 'https://aigod.xin')
     const host = url.hostname.toLowerCase()
-    if (host === 'claw.qt.cool') {
+    if (host === 'aigod.xin') {
       url.protocol = 'https:'
       return url.toString()
     }
@@ -175,7 +175,7 @@ function getInstallerAsset(panelInfo) {
 
 function getInstallerUrl(panelInfo) {
   return safeExternalHref(
-    panelInfo?.recommendedAsset?.downloadUrl || panelInfo?.downloadUrl || 'https://claw.qt.cool'
+    panelInfo?.recommendedAsset?.downloadUrl || panelInfo?.downloadUrl || 'https://aigod.xin'
   )
 }
 
@@ -397,7 +397,7 @@ function showBackendDownOverlay() {
       </button>
       <div id="backend-retry-status" style="font-size:12px;color:var(--text-tertiary);margin-top:12px"></div>
       <div style="margin-top:16px;font-size:11px;color:#aaa">
-        <a href="https://claw.qt.cool" target="_blank" rel="noopener" style="color:#aaa;text-decoration:none">claw.qt.cool</a>
+        <a href="https://aigod.xin" target="_blank" rel="noopener" style="color:#aaa;text-decoration:none">aigod.xin</a>
         <span style="margin:0 6px">&middot;</span>v${APP_VERSION}
       </div>
     </div>
@@ -489,7 +489,7 @@ function showLoginOverlay(defaultPw) {
         <div class="login-brand">
           <span class="login-brand-mark"><img src="/images/logo.png" alt="" aria-hidden="true"></span>
           <div class="login-brand-copy">
-            <span class="login-brand-kicker">claw.qt.cool</span>
+            <span class="login-brand-kicker">aigod.xin</span>
             <span class="login-title">ClawPanel</span>
           </div>
         </div>
@@ -522,7 +522,7 @@ function showLoginOverlay(defaultPw) {
         </div>
       </details>` : ''}
       <div class="login-footer">
-        <a href="https://claw.qt.cool" target="_blank" rel="noopener">claw.qt.cool</a>
+        <a href="https://aigod.xin" target="_blank" rel="noopener">aigod.xin</a>
         <span>v${APP_VERSION}</span>
       </div>
     </div>

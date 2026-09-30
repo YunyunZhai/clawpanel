@@ -200,6 +200,20 @@ pub fn search_log(
     Ok(matched[start..].to_vec())
 }
 
+#[tauri::command]
+pub fn clear_log(log_name: String) -> Result<(), String> {
+    let path = resolve_log_path(&log_name)?;
+    if !path.exists() {
+        return Ok(());
+    }
+    std::fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&path)
+        .map_err(|e| format!("清除日志失败: {e}"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

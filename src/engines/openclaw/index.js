@@ -45,8 +45,6 @@ export default {
         section: '',
         items: [
           { route: '/settings', label: t('sidebar.settings'), icon: 'settings' },
-          { route: '/chat-debug', label: t('sidebar.chatDebug'), icon: 'debug' },
-          { route: '/about', label: t('sidebar.about'), icon: 'about' },
         ]
       }]
     }
@@ -78,21 +76,6 @@ export default {
         { route: '/dreaming', label: t('sidebar.dreaming'), icon: 'dreaming', gate: 'dreaming' },
         { route: '/cron', label: t('sidebar.cron'), icon: 'clock', gate: 'cron' },
         { route: '/usage', label: t('sidebar.usage'), icon: 'bar-chart' },
-        { route: '/wallet', label: t('sidebar.wallet'), icon: 'wallet' },
-      ]
-    }, {
-      section: t('sidebar.sectionExtension'),
-      items: [
-        { route: '/skills', label: t('sidebar.skills'), icon: 'skills', gate: 'skills' },
-        { route: '/plugin-hub', label: t('sidebar.pluginHub'), icon: 'extensions' },
-      ]
-    }, {
-      section: '',
-      items: [
-        { route: '/settings', label: t('sidebar.settings'), icon: 'settings' },
-        { route: '/chat-debug', label: t('sidebar.checkRepair'), icon: 'diagnose' },
-        { route: '/glossary', label: t('sidebar.glossary'), icon: 'about' },
-        { route: '/about', label: t('sidebar.about'), icon: 'about' },
       ]
     }]
   },

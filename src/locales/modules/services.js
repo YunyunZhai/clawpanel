@@ -223,4 +223,13 @@ export default {
   // 协议版本徽章 (Gateway 卡片 + 诊断页)
   protocolBadge: _('协议 v{proto}', 'Proto v{proto}', '協議 v{proto}'),
   protocolBadgeTitle: _('当前 Gateway 与 ClawPanel 协商出的 WebSocket 握手协议版本 (与设备签名 payload 的 v3 格式无关)', 'WebSocket handshake protocol version negotiated with Gateway (independent of the device signature payload v3 format)', '當前 Gateway 與 ClawPanel 協商出的 WebSocket 握手協議版本 (與設備簽名 payload 的 v3 格式無關)'),
+  installPath: _('安装路径', 'Install Path', '安裝路徑'),
+  configured: _('已配置', 'Configured', '已配置'),
+  notConfigured: _('未配置', 'Not configured', '未配置'),
+  switchVersion: _('切换版本', 'Switch Version', '切換版本'),
+  selectVersion: _('选择要切换的版本', 'Select a version to switch', '選擇要切換的版本'),
+  currentVersionLabel: _('当前版本', 'Current', '目前版本'),
+  sameVersionHint: _('与当前版本相同，将重新安装', 'Same as current, will reinstall', '與目前版本相同，將重新安裝'),
+  noVersions: _('未获取到可用版本', 'No versions available', '未取得到可用版本'),
+  versionNotInstalled: _('尚未安装 OpenClaw，无法切换版本', 'OpenClaw not installed, cannot switch version', '尚未安裝 OpenClaw，無法切換版本'),
 }
