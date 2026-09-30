@@ -30,7 +30,7 @@
 
 ClawPanel — это визуальная панель управления, поддерживающая несколько фреймворков AI-агентов, сейчас с двойной поддержкой [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) и [Hermes Agent](https://github.com/nousresearch/hermes-agent). Со **встроенным интеллектуальным ИИ-ассистентом**, который помогает установить, автоматически диагностировать конфигурации, устранять неполадки и исправлять ошибки. 8 инструментов + 4 режима + интерактивный Q&A — удобное управление для новичков и экспертов.
 
-> 🌐 **Сайт**: [claw.qt.cool](https://claw.qt.cool/) | 📦 **Скачать**: [официальный центр загрузки](https://claw.qt.cool/download) | Резерв: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
+> 🌐 **Сайт**: [aigod.xin](https://aigod.xin/) | 📦 **Скачать**: [официальный центр загрузки](https://aigod.xin/download) | Резерв: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
 ### 🧪 Бесплатное тестирование: QingChen Cloud
 
@@ -96,7 +96,7 @@ ClawPanel — это визуальная панель управления, п�
 
 ## Скачать и установить
 
-Перейдите в [официальный центр загрузки](https://claw.qt.cool/download) за последней версией. GitHub Releases остается резервным вариантом:
+Перейдите в [официальный центр загрузки](https://aigod.xin/download) за последней версией. GitHub Releases остается резервным вариантом:
 
 | Платформа | Установщик |
 |----------|-----------|
@@ -181,10 +181,10 @@ If you find this project useful, consider supporting us via USDT (BNB Smart Chai
 
 - **Email**: [support@qctx.net](mailto:support@qctx.net)
 - **Website**: [qingchencloud.com](https://qingchencloud.com)
-- **Product**: [claw.qt.cool](https://claw.qt.cool)
+- **Product**: [aigod.xin](https://aigod.xin)
 
 ## Лицензия
 
 [AGPL-3.0](LICENSE). Для коммерческого использования обращайтесь за коммерческой лицензией.
 
-© 2026 QingchenCloud | [claw.qt.cool](https://claw.qt.cool)
+© 2026 QingchenCloud | [aigod.xin](https://aigod.xin)

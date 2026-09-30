@@ -18,7 +18,7 @@
 #sidebar.sidebar-collapsed .sidebar-title,
 #sidebar.sidebar-collapsed .nav-section-title,
 #sidebar.sidebar-collapsed .nav-item span,
-#sidebar.sidebar-collapsed .sidebar-meta,
+#sidebar.sidebar-collapsed .sidebar-version,
 #sidebar.sidebar-collapsed .instance-switcher,
 #sidebar.sidebar-collapsed .engine-switcher,
 #sidebar.sidebar-collapsed #sidebar-portable-badge {
@@ -251,7 +251,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 8px;
+  margin: 0;
   padding: 0 2px;
 }
 
@@ -441,22 +441,13 @@
   display: none;
 }
 
-.sidebar-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 12px 2px;
-  font-size: 11px;
-}
-.sidebar-link {
-  color: var(--text-tertiary);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-.sidebar-link:hover {
-  color: var(--primary);
-}
+/* 版本号与夜间模式 / 语言选择同处一行，靠 margin-left 推到最右 */
 .sidebar-version {
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
   color: var(--text-tertiary);
   opacity: 0.7;
 }

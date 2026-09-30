@@ -2,7 +2,7 @@
 
 感谢你对 ClawPanel 项目的关注！本文档同时作为**贡献指南**和**项目维护手册**，涵盖开发、构建、发版、部署的完整工作流。
 
-> 🌐 **官网**: [claw.qt.cool](https://claw.qt.cool/)  |  📦 **仓库**: [github.com/qingchencloud/clawpanel](https://github.com/qingchencloud/clawpanel)
+> 🌐 **官网**: [aigod.xin](https://aigod.xin/)  |  📦 **仓库**: [github.com/qingchencloud/clawpanel](https://github.com/qingchencloud/clawpanel)
 
 ---
 
@@ -452,7 +452,7 @@ ClawPanel 支持访问密码保护，**Web 模式和 Tauri 桌面端均可启用
 
 ### 1. 桌面应用（Tauri）
 
-面向 macOS / Windows / Linux 桌面用户，优先从 [官网下载中心](https://claw.qt.cool/download) 下载安装包；[GitHub Releases](https://github.com/qingchencloud/clawpanel/releases) 保留为备用入口。
+面向 macOS / Windows / Linux 桌面用户，优先从 [官网下载中心](https://aigod.xin/download) 下载安装包；[GitHub Releases](https://github.com/qingchencloud/clawpanel/releases) 保留为备用入口。
 
 ### 2. Linux 服务器（Web 版）
 

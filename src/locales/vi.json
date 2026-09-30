@@ -3338,7 +3338,7 @@
     "confirmCancel": "Hủy"
   },
   "engagement": {
-    "shareText": "Giới thiệu một bảng điều khiển mã nguồn mở cho OpenClaw — ClawPanel. Thiết lập nhanh, quản lý model và Agent thuận tiện, còn có cả trợ lý AI hỗ trợ xử lý sự cố: https://claw.qt.cool",
+    "shareText": "Giới thiệu một bảng điều khiển mã nguồn mở cho OpenClaw — ClawPanel. Thiết lập nhanh, quản lý model và Agent thuận tiện, còn có cả trợ lý AI hỗ trợ xử lý sự cố: https://aigod.xin",
     "title": "Cảm ơn bạn đã sử dụng ClawPanel",
     "message": "ClawPanel là một dự án <strong>mã nguồn mở hoàn toàn và miễn phí</strong>, được đội ngũ QingchenCloud duy trì chuyên trách và cập nhật liên tục. Nếu nó giúp ích cho bạn, sự ủng hộ lớn nhất dành cho chúng tôi là:",
     "starTitle": "GitHub Star",

@@ -1248,11 +1248,13 @@ async function openInstallerUpdateDialog(options = {}) {
   return true
 }
 
-window.addEventListener('clawpanel:show-installer-update', (event) => {
-  openInstallerUpdateDialog({ ...(event.detail || {}), force: true }).catch(() => {
-    toast(t('about.checkUpdateFailed'), 'error')
-  })
-})
+// 已停用对外网络连接：版本更新弹框入口不再触发官网版本检查。
+// 恢复方法：取消注释下面的事件监听。
+// window.addEventListener('clawpanel:show-installer-update', (event) => {
+//   openInstallerUpdateDialog({ ...(event.detail || {}), force: true }).catch(() => {
+//     toast(t('about.checkUpdateFailed'), 'error')
+//   })
+// })
 
 async function checkSiteAnnouncements() {
   await refreshSiteMessageCenter({ auto: true })
@@ -1303,11 +1305,13 @@ function startAnnouncementChecker() {
         <div style="margin-top:24px;font-size:11px;color:#a1a1aa">${t('common.pageLoadFailedHint')}<br><a href="https://github.com/qingchencloud/clawpanel/issues" target="_blank" style="color:#6366f1">GitHub Issues</a></div>
       </div>`
   }
-  initSiteMessageCenter({
-    fetcher: () => api.checkSiteAnnouncements(getLang()),
-  })
-  startUpdateChecker()
-  startAnnouncementChecker()
+  // 已停用对外网络连接：公告弹框、消息中心、版本更新检查全部不再启动。
+  // 恢复方法：取消注释下面三行。
+  // initSiteMessageCenter({
+  //   fetcher: () => api.checkSiteAnnouncements(getLang()),
+  // })
+  // startUpdateChecker()
+  // startAnnouncementChecker()
 
   // 初始化全局 AI 助手浮动按钮（延迟加载，不阻塞启动；助手入口隐藏时整段跳过）
   setTimeout(async () => {

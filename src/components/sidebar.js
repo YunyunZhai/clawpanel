@@ -286,13 +286,20 @@ export function renderSidebar(el) {
   // 内核可升级卡片（仅 openclaw 引擎、已连接、低于推荐版时显示）
   html += _renderKernelUpgradeHint()
 
+  // 已停用对外网络连接：公告/消息中心入口已隐藏（官网公告接口不再请求）。
+  // 恢复方法：把下面的 '' 换成注释里的模板字符串。
+  const siteMessageTriggerHtml = ''
+  // const siteMessageTriggerHtml = `
+  //   <button class="sidebar-tool-btn site-message-trigger" type="button" title="${t('siteMessages.title')}" aria-label="${t('siteMessages.title')}">
+  //     ${bellIcon}
+  //     <span class="site-message-tool-badge" aria-hidden="true"></span>
+  //   </button>
+  // `
+
   html += `
     <div class="sidebar-footer">
       <div class="sidebar-tools" aria-label="ClawPanel tools">
-        <button class="sidebar-tool-btn site-message-trigger" type="button" title="${t('siteMessages.title')}" aria-label="${t('siteMessages.title')}">
-          ${bellIcon}
-          <span class="site-message-tool-badge" aria-hidden="true"></span>
-        </button>
+        ${siteMessageTriggerHtml}
         <button class="sidebar-tool-btn" id="btn-theme-toggle" type="button" title="${isDark ? t('sidebar.themeLight') : t('sidebar.themeDark')}" aria-label="${isDark ? t('sidebar.themeLight') : t('sidebar.themeDark')}">
           ${isDark ? sunIcon : moonIcon}
         </button>
@@ -305,10 +312,7 @@ export function renderSidebar(el) {
             <div class="lang-options" id="lang-options">${langOptions}</div>
           </div>
         </div>
-      </div>
-      <div class="sidebar-meta">
-        <a href="https://aigod.xin" target="_blank" rel="noopener" class="sidebar-link">aigod.xin</a>
-        <span class="sidebar-version">v${APP_VERSION}</span>
+        <span class="sidebar-version" title="${APP_VERSION}">v${APP_VERSION}</span>
       </div>
     </div>
   `

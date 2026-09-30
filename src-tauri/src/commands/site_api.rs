@@ -1,3 +1,7 @@
+// 官网接口（公告 / 版本发现 / 心跳）已停用对外请求，原实现整段保留为注释便于随时恢复。
+// 停用后这些辅助函数暂时没有调用方，属于预期情况。
+#![allow(dead_code, unused_imports)]
+
 use rand::RngCore;
 use reqwest::Url;
 use serde_json::{json, Map, Value};
@@ -241,61 +245,65 @@ fn select_recommended_asset_for(assets: &[Value], platform: &str, arch: &str) ->
 }
 
 pub async fn site_latest_for_panel_update() -> Result<Value, String> {
-    let client = super::build_http_client(Duration::from_secs(10), Some("ClawPanel"))
-        .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))?;
-    let mut latest = fetch_site_latest(&client).await?;
-    normalize_download_fields(&mut latest);
+    // 已停用对外网络连接：不再请求官网 /api/v1/latest。
+    // 恢复方法：删除下面这行 Err，再取消注释原实现。
+    // let client = super::build_http_client(Duration::from_secs(10), Some("ClawPanel"))
+    //     .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))?;
+    // let mut latest = fetch_site_latest(&client).await?;
+    // normalize_download_fields(&mut latest);
+    //
+    // let version = latest
+    //     .get("version")
+    //     .and_then(Value::as_str)
+    //     .or_else(|| latest.get("tagName").and_then(Value::as_str))
+    //     .unwrap_or_default()
+    //     .trim_start_matches('v')
+    //     .to_string();
+    // if version.is_empty() {
+    //     return Err("site: 未找到版本号".into());
+    // }
+    //
+    // let assets: Vec<Value> = latest
+    //     .get("assets")
+    //     .and_then(Value::as_array)
+    //     .cloned()
+    //     .unwrap_or_default();
+    // let recommended_asset = select_recommended_asset(&assets);
+    // let download_url = recommended_asset
+    //     .as_ref()
+    //     .and_then(|asset| asset.get("downloadUrl"))
+    //     .and_then(Value::as_str)
+    //     .filter(|url| !url.trim().is_empty())
+    //     .unwrap_or(SITE_BASE_URL)
+    //     .to_string();
+    //
+    // let mut result = Map::new();
+    // result.insert("latest".into(), Value::String(version));
+    // result.insert("url".into(), Value::String(SITE_BASE_URL.into()));
+    // result.insert("source".into(), Value::String("site".into()));
+    // result.insert("downloadUrl".into(), Value::String(download_url));
+    // result.insert("assets".into(), Value::Array(assets));
+    // if let Some(asset) = recommended_asset {
+    //     result.insert("recommendedAsset".into(), asset);
+    // } else {
+    //     result.insert("recommendedAsset".into(), Value::Null);
+    // }
+    // for key in [
+    //     "releaseNotes",
+    //     "publishedAt",
+    //     "tagName",
+    //     "downloads",
+    //     "telemetry",
+    //     "update",
+    // ] {
+    //     if let Some(value) = latest.get(key) {
+    //         result.insert(key.into(), value.clone());
+    //     }
+    // }
+    //
+    // Ok(Value::Object(result))
 
-    let version = latest
-        .get("version")
-        .and_then(Value::as_str)
-        .or_else(|| latest.get("tagName").and_then(Value::as_str))
-        .unwrap_or_default()
-        .trim_start_matches('v')
-        .to_string();
-    if version.is_empty() {
-        return Err("site: 未找到版本号".into());
-    }
-
-    let assets: Vec<Value> = latest
-        .get("assets")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let recommended_asset = select_recommended_asset(&assets);
-    let download_url = recommended_asset
-        .as_ref()
-        .and_then(|asset| asset.get("downloadUrl"))
-        .and_then(Value::as_str)
-        .filter(|url| !url.trim().is_empty())
-        .unwrap_or(SITE_BASE_URL)
-        .to_string();
-
-    let mut result = Map::new();
-    result.insert("latest".into(), Value::String(version));
-    result.insert("url".into(), Value::String(SITE_BASE_URL.into()));
-    result.insert("source".into(), Value::String("site".into()));
-    result.insert("downloadUrl".into(), Value::String(download_url));
-    result.insert("assets".into(), Value::Array(assets));
-    if let Some(asset) = recommended_asset {
-        result.insert("recommendedAsset".into(), asset);
-    } else {
-        result.insert("recommendedAsset".into(), Value::Null);
-    }
-    for key in [
-        "releaseNotes",
-        "publishedAt",
-        "tagName",
-        "downloads",
-        "telemetry",
-        "update",
-    ] {
-        if let Some(value) = latest.get(key) {
-            result.insert(key.into(), value.clone());
-        }
-    }
-
-    Ok(Value::Object(result))
+    Err("官网版本接口已停用".into())
 }
 
 async fn fetch_site_latest(client: &reqwest::Client) -> Result<Value, String> {
@@ -315,75 +323,84 @@ async fn fetch_site_latest(client: &reqwest::Client) -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn check_site_announcements(locale: Option<String>) -> Result<Value, String> {
-    let client = super::build_http_client(Duration::from_secs(10), Some("ClawPanel"))
-        .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))?;
-    let raw_locale = locale
-        .map(|v| v.trim().to_string())
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(default_locale);
-    let locale = normalize_site_locale(&raw_locale);
-    let url = cache_busted_site_url(
-        ANNOUNCEMENTS_PATH,
-        &[
-            ("app", "ClawPanel".to_string()),
-            ("version", env!("CARGO_PKG_VERSION").to_string()),
-            ("locale", locale),
-            ("surface", "client".to_string()),
-        ],
-    );
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("公告请求失败: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("公告服务器返回 {}", resp.status()));
-    }
-    let mut body: Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("公告解析失败: {e}"))?;
-    normalize_download_fields(&mut body);
-    Ok(body)
+    // 已停用对外网络连接：不再请求官网 /api/v1/announcements，客户端不再收到公告弹框。
+    // 恢复方法：删除 `let _ = &locale;` 和下面这行 Err，再取消注释原实现。
+    let _ = &locale;
+    // let client = super::build_http_client(Duration::from_secs(10), Some("ClawPanel"))
+    //     .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))?;
+    // let raw_locale = locale
+    //     .map(|v| v.trim().to_string())
+    //     .filter(|v| !v.is_empty())
+    //     .unwrap_or_else(default_locale);
+    // let locale = normalize_site_locale(&raw_locale);
+    // let url = cache_busted_site_url(
+    //     ANNOUNCEMENTS_PATH,
+    //     &[
+    //         ("app", "ClawPanel".to_string()),
+    //         ("version", env!("CARGO_PKG_VERSION").to_string()),
+    //         ("locale", locale),
+    //         ("surface", "client".to_string()),
+    //     ],
+    // );
+    // let resp = client
+    //     .get(url)
+    //     .send()
+    //     .await
+    //     .map_err(|e| format!("公告请求失败: {e}"))?;
+    // if !resp.status().is_success() {
+    //     return Err(format!("公告服务器返回 {}", resp.status()));
+    // }
+    // let mut body: Value = resp
+    //     .json()
+    //     .await
+    //     .map_err(|e| format!("公告解析失败: {e}"))?;
+    // normalize_download_fields(&mut body);
+    // Ok(body)
+
+    Err("官网公告接口已停用".into())
 }
 
 pub fn start_heartbeat_loop() {
-    tauri::async_runtime::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(60));
-        interval.tick().await;
-        loop {
-            send_heartbeat_once().await;
-            interval.tick().await;
-        }
-    });
+    // 已停用对外网络连接：心跳上报循环（每 60 秒一次）已停用，不再产生任何对外请求。
+    // 恢复方法：取消注释下面的实现。
+    // tauri::async_runtime::spawn(async move {
+    //     let mut interval = tokio::time::interval(Duration::from_secs(60));
+    //     interval.tick().await;
+    //     loop {
+    //         send_heartbeat_once().await;
+    //         interval.tick().await;
+    //     }
+    // });
 }
 
 async fn send_heartbeat_once() {
-    let client_id = match get_or_create_client_id() {
-        Ok(id) => id,
-        Err(_) => return,
-    };
-    let client = match super::build_http_client(Duration::from_secs(8), Some("ClawPanel")) {
-        Ok(client) => client,
-        Err(_) => return,
-    };
-    let payload = json!({
-        "app": "ClawPanel",
-        "version": env!("CARGO_PKG_VERSION"),
-        "platform": std::env::consts::OS,
-        "arch": std::env::consts::ARCH,
-        "channel": "stable",
-        "runtime": "tauri",
-        "runtimeVersion": "tauri-v2",
-        "locale": default_locale(),
-    });
-    let url = cache_busted_site_url(HEARTBEAT_PATH, &[]);
-    let _ = client
-        .post(url)
-        .header("X-ClawPanel-Client-ID", client_id)
-        .json(&payload)
-        .send()
-        .await;
+    // 已停用对外网络连接：不再 POST /api/v1/client/heartbeat，也不再生成 client-id。
+    // 恢复方法：取消注释下面的实现。
+    // let client_id = match get_or_create_client_id() {
+    //     Ok(id) => id,
+    //     Err(_) => return,
+    // };
+    // let client = match super::build_http_client(Duration::from_secs(8), Some("ClawPanel")) {
+    //     Ok(client) => client,
+    //     Err(_) => return,
+    // };
+    // let payload = json!({
+    //     "app": "ClawPanel",
+    //     "version": env!("CARGO_PKG_VERSION"),
+    //     "platform": std::env::consts::OS,
+    //     "arch": std::env::consts::ARCH,
+    //     "channel": "stable",
+    //     "runtime": "tauri",
+    //     "runtimeVersion": "tauri-v2",
+    //     "locale": default_locale(),
+    // });
+    // let url = cache_busted_site_url(HEARTBEAT_PATH, &[]);
+    // let _ = client
+    //     .post(url)
+    //     .header("X-ClawPanel-Client-ID", client_id)
+    //     .json(&payload)
+    //     .send()
+    //     .await;
 }
 
 fn client_id_path() -> PathBuf {
@@ -524,7 +541,7 @@ mod tests {
         );
         assert_eq!(
             normalize_public_url("/api/v1/download/1").as_deref(),
-            Some("https://claw.qt.cool/api/v1/download/1")
+            Some("https://aigod.xin/api/v1/download/1")
         );
         assert!(
             normalize_public_url("https://github.com/qingchencloud/clawpanel/releases").is_some()

@@ -32,14 +32,14 @@
 </p>
 
 <p align="center">
-  <a href="https://claw.qt.cool/#video">
+  <a href="https://aigod.xin/#video">
     <img src="https://img.shields.io/badge/%E2%96%B6%20%E6%BC%94%E7%A4%BA%E8%A7%86%E9%A2%91-50%E7%A7%92%E5%BF%AB%E9%80%9F%E4%BA%86%E8%A7%A3-6366f1?style=for-the-badge" alt="演示视频">
   </a>
 </p>
 
 ClawPanel 是支持多 AI Agent 框架的可视化管理面板，目前支持 [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation)、[Hermes Agent](https://github.com/nousresearch/hermes-agent) 和 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 三引擎。**内置智能 AI 助手**，帮你一键安装、自动诊断配置、排查问题、修复错误。8 大工具 + 4 种模式 + 交互式问答，从新手到老手都能轻松管理。
 
-> 🌐 **官网**: [claw.qt.cool](https://claw.qt.cool/)  |  📦 **下载**: [官网下载中心](https://claw.qt.cool/download)  |  备用: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)  |  国内镜像: [AtomGit](https://atomgit.com/qingchencloud/clawpanel)
+> 🌐 **官网**: [aigod.xin](https://aigod.xin/)  |  📦 **下载**: [官网下载中心](https://aigod.xin/download)  |  备用: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)  |  国内镜像: [AtomGit](https://atomgit.com/qingchencloud/clawpanel)
 
 ## 🧪 DeepSeek Harness 第三引擎：面板内完成配置与实际操作
 
@@ -164,7 +164,7 @@ ClawPanel 提供**纯 Web 版部署模式**（零 GUI 依赖），天然兼容 A
 
 ## 下载安装
 
-前往 [官网下载中心](https://claw.qt.cool/download) 下载最新版本。页面会自动识别系统，也可以手动选择 Windows、macOS 或 Linux 安装包；GitHub Releases 作为备用下载入口保留。
+前往 [官网下载中心](https://aigod.xin/download) 下载最新版本。页面会自动识别系统，也可以手动选择 Windows、macOS 或 Linux 安装包；GitHub Releases 作为备用下载入口保留。
 
 ### macOS
 
@@ -1162,4 +1162,4 @@ ClawPanel 的成长离不开每一位贡献者的付出。感谢你们让这个�
 
 本项目采用 [AGPL-3.0](LICENSE) 开源协议。企业如需闭源商用，可联系获取商业授权。
 
-© 2026 武汉晴辰天下网络科技有限公司 | [claw.qt.cool](https://claw.qt.cool)
+© 2026 武汉晴辰天下网络科技有限公司 | [aigod.xin](https://aigod.xin)

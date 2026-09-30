@@ -1,3 +1,7 @@
+// 前端热更新的清单检查已停用对外请求，原实现整段保留为注释便于随时恢复。
+// 停用后 LATEST_JSON_URL / version_gt / normalize_manifest_url 暂时没有调用方，属于预期情况。
+#![allow(dead_code, unused_imports)]
+
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -16,67 +20,71 @@ const LATEST_JSON_URL: &str = "https://aigod.xin/update/latest.json";
 /// 检查前端是否有新版本可用
 #[tauri::command]
 pub async fn check_frontend_update() -> Result<Value, String> {
-    let client = super::build_http_client(std::time::Duration::from_secs(10), Some("ClawPanel"))
-        .map_err(|e| format!("HTTP 客户端错误: {e}"))?;
+    // 已停用对外网络连接：不再请求官网 /update/latest.json。
+    // 恢复方法：删除下面这行 Err，再取消注释原实现。
+    // let client = super::build_http_client(std::time::Duration::from_secs(10), Some("ClawPanel"))
+    //     .map_err(|e| format!("HTTP 客户端错误: {e}"))?;
+    //
+    // let url = format!(
+    //     "{}?_t={}",
+    //     LATEST_JSON_URL,
+    //     SystemTime::now()
+    //         .duration_since(UNIX_EPOCH)
+    //         .unwrap_or_default()
+    //         .as_millis()
+    // );
+    //
+    // let resp = client
+    //     .get(url)
+    //     .send()
+    //     .await
+    //     .map_err(|e| format!("请求失败: {e}"))?;
+    //
+    // if !resp.status().is_success() {
+    //     return Err(format!("服务器返回 {}", resp.status()));
+    // }
+    //
+    // let mut manifest: Value = resp.json().await.map_err(|e| format!("解析失败: {e}"))?;
+    // normalize_manifest_url(&mut manifest);
+    //
+    // let latest = manifest
+    //     .get("version")
+    //     .and_then(|v| v.as_str())
+    //     .unwrap_or("")
+    //     .to_string();
+    //
+    // // 优先读取已热更新的版本，避免 macOS/Linux 用户安装旧包后永远提示有更新
+    // let frontend_current = {
+    //     let version_file = update_dir().join(".version");
+    //     std::fs::read_to_string(&version_file)
+    //         .ok()
+    //         .map(|s| s.trim().to_string())
+    //         .filter(|s| !s.is_empty())
+    //         .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
+    // };
+    //
+    // // 检查最低兼容的 app 版本（前端可能依赖较新的 Rust 后端命令）
+    // let min_app = manifest
+    //     .get("minAppVersion")
+    //     .and_then(|v| v.as_str())
+    //     .unwrap_or("0.0.0");
+    //
+    // let app_version = env!("CARGO_PKG_VERSION");
+    // let compatible = version_ge(app_version, min_app);
+    // let remote_newer = !latest.is_empty() && compatible && version_gt(&latest, &frontend_current);
+    // let update_ready = remote_newer && update_dir().join("index.html").exists();
+    // let has_update = remote_newer && !update_ready;
+    //
+    // Ok(serde_json::json!({
+    //     "currentVersion": frontend_current,
+    //     "latestVersion": latest,
+    //     "hasUpdate": has_update,
+    //     "compatible": compatible,
+    //     "updateReady": update_ready,
+    //     "manifest": manifest
+    // }))
 
-    let url = format!(
-        "{}?_t={}",
-        LATEST_JSON_URL,
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis()
-    );
-
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("请求失败: {e}"))?;
-
-    if !resp.status().is_success() {
-        return Err(format!("服务器返回 {}", resp.status()));
-    }
-
-    let mut manifest: Value = resp.json().await.map_err(|e| format!("解析失败: {e}"))?;
-    normalize_manifest_url(&mut manifest);
-
-    let latest = manifest
-        .get("version")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    // 优先读取已热更新的版本，避免 macOS/Linux 用户安装旧包后永远提示有更新
-    let frontend_current = {
-        let version_file = update_dir().join(".version");
-        std::fs::read_to_string(&version_file)
-            .ok()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
-    };
-
-    // 检查最低兼容的 app 版本（前端可能依赖较新的 Rust 后端命令）
-    let min_app = manifest
-        .get("minAppVersion")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0.0.0");
-
-    let app_version = env!("CARGO_PKG_VERSION");
-    let compatible = version_ge(app_version, min_app);
-    let remote_newer = !latest.is_empty() && compatible && version_gt(&latest, &frontend_current);
-    let update_ready = remote_newer && update_dir().join("index.html").exists();
-    let has_update = remote_newer && !update_ready;
-
-    Ok(serde_json::json!({
-        "currentVersion": frontend_current,
-        "latestVersion": latest,
-        "hasUpdate": has_update,
-        "compatible": compatible,
-        "updateReady": update_ready,
-        "manifest": manifest
-    }))
+    Err("前端热更新检查已停用".into())
 }
 
 /// 下载并解压前端更新包

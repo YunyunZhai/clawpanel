@@ -123,10 +123,10 @@ export async function render() {
             <h1 class="setup-hero-title">${t('setup.headerTitle')}</h1>
             <p class="setup-hero-desc">${t('setup.headerDesc')}</p>
             <div class="setup-hero-site-row">
-              <a class="setup-hero-site-link" href="https://claw.qt.cool" target="_blank" rel="noopener noreferrer" title="https://claw.qt.cool">
+              <a class="setup-hero-site-link" href="https://aigod.xin" target="_blank" rel="noopener noreferrer" title="https://aigod.xin">
                 ${icon('link', 14)}
                 <span class="setup-hero-site-label">${t('setup.officialWebsite')}</span>
-                <span class="setup-hero-site-value">claw.qt.cool</span>
+                <span class="setup-hero-site-value">aigod.xin</span>
               </a>
             </div>
             <div id="setup-portable-badge" style="display:none;margin-top:8px"></div>

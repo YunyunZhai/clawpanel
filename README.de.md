@@ -30,7 +30,7 @@
 
 ClawPanel ist ein visuelles Verwaltungspanel, das mehrere AI-Agent-Frameworks unterstützt, derzeit mit Dual-Engine-Unterstützung für [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) und [Hermes Agent](https://github.com/nousresearch/hermes-agent). Mit einem **integrierten intelligenten KI-Assistenten**, der bei der Installation hilft, Konfigurationen automatisch diagnostiziert, Probleme behebt und Fehler korrigiert. 8 Werkzeuge + 4 Modi + interaktives Q&A — einfache Verwaltung für Anfänger und Experten.
 
-> 🌐 **Website**: [claw.qt.cool](https://claw.qt.cool/) | 📦 **Download**: [Offizielles Download-Center](https://claw.qt.cool/download) | Fallback: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
+> 🌐 **Website**: [aigod.xin](https://aigod.xin/) | 📦 **Download**: [Offizielles Download-Center](https://aigod.xin/download) | Fallback: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
 ### 🧪 Kostenlos testen: QingChen Cloud
 
@@ -96,7 +96,7 @@ Eine Community leidenschaftlicher KI-Agenten-Entwickler und -Enthusiasten — tr
 
 ## Download & Installation
 
-Besuchen Sie das [offizielle Download-Center](https://claw.qt.cool/download) für die neueste Version. GitHub Releases bleibt als Fallback verfügbar:
+Besuchen Sie das [offizielle Download-Center](https://aigod.xin/download) für die neueste Version. GitHub Releases bleibt als Fallback verfügbar:
 
 | Plattform | Installer |
 |----------|----------|
@@ -181,10 +181,10 @@ If you find this project useful, consider supporting us via USDT (BNB Smart Chai
 
 - **Email**: [support@qctx.net](mailto:support@qctx.net)
 - **Website**: [qingchencloud.com](https://qingchencloud.com)
-- **Product**: [claw.qt.cool](https://claw.qt.cool)
+- **Product**: [aigod.xin](https://aigod.xin)
 
 ## Lizenz
 
 [AGPL-3.0](LICENSE). Kontaktieren Sie uns für eine kommerzielle Lizenz.
 
-© 2026 QingchenCloud | [claw.qt.cool](https://claw.qt.cool)
+© 2026 QingchenCloud | [aigod.xin](https://aigod.xin)

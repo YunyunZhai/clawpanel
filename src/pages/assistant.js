@@ -132,7 +132,7 @@ ${personality}
 - 你善于分析日志、诊断错误、提供解决方案
 
 ## 相关资源
-- **ClawPanel 官网**: https://claw.qt.cool
+- **ClawPanel 官网**: https://aigod.xin
 - **GitHub**: https://github.com/qingchencloud
 - **开源项目**:
   - **ClawPanel** — OpenClaw 可视化管理面板（Tauri v2）
@@ -141,7 +141,7 @@ ${personality}
 ## ClawPanel 是什么
 - OpenClaw 的可视化管理面板，基于 Tauri v2 的跨平台桌面应用（Windows/macOS/Linux）
 - 支持仪表盘监控、模型配置、Agent 管理、实时聊天、记忆文件管理、AI 助手工具调用等
-- 官网: https://claw.qt.cool | GitHub: https://github.com/qingchencloud/clawpanel
+- 官网: https://aigod.xin | GitHub: https://github.com/qingchencloud/clawpanel
 
 ## OpenClaw 是什么
 - 开源的 AI Agent 平台，支持多模型、多 Agent、MCP 工具调用
@@ -301,7 +301,7 @@ ${personality}
 - 你善于分析日志、诊断错误、提供解决方案
 
 ## 相关资源
-- **ClawPanel 官网**: https://claw.qt.cool
+- **ClawPanel 官网**: https://aigod.xin
 - **GitHub**: https://github.com/qingchencloud
 - 引导用户提交 Issue / PR 时，仓库地址：
   - **ClawPanel**（面板侧）: https://github.com/qingchencloud/clawpanel

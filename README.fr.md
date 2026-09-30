@@ -30,7 +30,7 @@
 
 ClawPanel est un panneau de gestion visuel supportant plusieurs frameworks d'agents IA, actuellement avec un double support pour [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) et [Hermes Agent](https://github.com/nousresearch/hermes-agent). Il intègre un **assistant IA intelligent** qui vous aide à installer, diagnostiquer automatiquement les configurations, résoudre les problèmes et corriger les erreurs. 8 outils + 4 modes + Q&A interactif — facile à gérer pour débutants et experts.
 
-> 🌐 **Site web** : [claw.qt.cool](https://claw.qt.cool/) | 📦 **Télécharger** : [Centre de téléchargement officiel](https://claw.qt.cool/download) | Secours : [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
+> 🌐 **Site web** : [aigod.xin](https://aigod.xin/) | 📦 **Télécharger** : [Centre de téléchargement officiel](https://aigod.xin/download) | Secours : [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
 ### 🧪 Test gratuit : QingChen Cloud
 
@@ -96,7 +96,7 @@ Une communauté de développeurs et d'enthousiastes passionnés par les agents I
 
 ## Télécharger et installer
 
-Rendez-vous sur le [centre de téléchargement officiel](https://claw.qt.cool/download) pour la dernière version. GitHub Releases reste disponible en secours :
+Rendez-vous sur le [centre de téléchargement officiel](https://aigod.xin/download) pour la dernière version. GitHub Releases reste disponible en secours :
 
 | Plateforme | Installateur |
 |-----------|-------------|
@@ -181,10 +181,10 @@ If you find this project useful, consider supporting us via USDT (BNB Smart Chai
 
 - **Email**: [support@qctx.net](mailto:support@qctx.net)
 - **Website**: [qingchencloud.com](https://qingchencloud.com)
-- **Product**: [claw.qt.cool](https://claw.qt.cool)
+- **Product**: [aigod.xin](https://aigod.xin)
 
 ## Licence
 
 [AGPL-3.0](LICENSE). Contactez-nous pour une licence commerciale.
 
-© 2026 QingchenCloud | [claw.qt.cool](https://claw.qt.cool)
+© 2026 QingchenCloud | [aigod.xin](https://aigod.xin)

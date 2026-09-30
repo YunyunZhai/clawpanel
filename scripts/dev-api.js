@@ -704,7 +704,7 @@ const PANEL_VERSION = (() => {
     return '0.0.0'
   }
 })()
-const SITE_BASE_URL = 'https://claw.qt.cool'
+const SITE_BASE_URL = 'https://aigod.xin'
 const VERSION_POLICY_PATH = path.join(__dev_dirname, '..', 'openclaw-version-policy.json')
 const OPENCLAW_NODE_22_19_VERSION_FLOOR = '2026.6.5'
 const OPENCLAW_NODE_22_19_REQUIREMENT = '>=22.19.0'
@@ -1742,7 +1742,7 @@ function normalizePublicUrl(raw) {
     return ''
   }
   const host = url.hostname.toLowerCase()
-  if (host === 'claw.qt.cool') {
+  if (host === 'aigod.xin') {
     url.protocol = 'https:'
     return url.toString()
   }
@@ -16876,32 +16876,42 @@ const handlers = {
     return true
   },
 
-  async check_panel_update() {
-    try {
-      return await getSitePanelUpdate()
-    } catch (e) {
-      return {
-        latest: null,
-        url: SITE_BASE_URL,
-        source: 'site',
-        downloadUrl: SITE_BASE_URL,
-        error: `site: ${e.message || e}`,
-      }
-    }
+  // 已停用对外网络连接：不再请求官网 /api/v1/latest（Web 模式）。
+  // 恢复方法：取消注释下面的实现。
+  // async check_panel_update() {
+  //   try {
+  //     return await getSitePanelUpdate()
+  //   } catch (e) {
+  //     return {
+  //       latest: null,
+  //       url: SITE_BASE_URL,
+  //       source: 'site',
+  //       downloadUrl: SITE_BASE_URL,
+  //       error: `site: ${e.message || e}`,
+  //     }
+  //   }
+  // },
+  check_panel_update() {
+    return { latest: null, error: '官网版本接口已停用' }
   },
 
-  async check_site_announcements({ locale } = {}) {
-    const resp = await globalThis.fetch(cacheBustedSiteUrl('/api/v1/announcements', {
-      app: 'ClawPanel',
-      version: PANEL_VERSION,
-      locale: normalizeSiteLocale(locale),
-      surface: 'client',
-    }), {
-      signal: AbortSignal.timeout(10000),
-      headers: { 'User-Agent': 'ClawPanel' },
-    })
-    if (!resp.ok) throw new Error(`公告服务器返回 ${resp.status}`)
-    return normalizeSiteUrlFields(await resp.json())
+  // 已停用对外网络连接：不再请求官网 /api/v1/announcements（Web 模式），客户端不再收到公告弹框。
+  // 恢复方法：取消注释下面的实现。
+  // async check_site_announcements({ locale } = {}) {
+  //   const resp = await globalThis.fetch(cacheBustedSiteUrl('/api/v1/announcements', {
+  //     app: 'ClawPanel',
+  //     version: PANEL_VERSION,
+  //     locale: normalizeSiteLocale(locale),
+  //     surface: 'client',
+  //   }), {
+  //     signal: AbortSignal.timeout(10000),
+  //     headers: { 'User-Agent': 'ClawPanel' },
+  //   })
+  //   if (!resp.ok) throw new Error(`公告服务器返回 ${resp.status}`)
+  //   return normalizeSiteUrlFields(await resp.json())
+  // },
+  async check_site_announcements() {
+    throw new Error('官网公告接口已停用')
   },
 
   write_env_file({ path: p, config }) {

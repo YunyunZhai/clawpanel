@@ -1224,22 +1224,12 @@ body[data-active-engine="hermes"] .lang-option-code {
   color: #A8A29E;
 }
 
-/* Footer meta strip (version + link) */
-body[data-active-engine="hermes"] .sidebar-meta {
+/* Footer version text (moved into the tools row) */
+body[data-active-engine="hermes"] .sidebar-version {
   font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
   font-size: 10.5px;
-  padding: 8px 14px 4px;
   color: #A8A29E;
 }
-body[data-active-engine="hermes"] .sidebar-link {
-  color: #A8A29E;
-  transition: color 180ms;
-}
-body[data-active-engine="hermes"] .sidebar-link:hover {
-  color: #CA8A04;
-}
-body[data-active-engine="hermes"] .sidebar-version { color: #A8A29E; }
-
 /* ---- Dark mode variants ---- */
 [data-theme="dark"] body[data-active-engine="hermes"],
 body[data-active-engine="hermes"][data-theme="dark"] {
@@ -1334,13 +1324,8 @@ body[data-active-engine="hermes"][data-theme="dark"] {
 [data-theme="dark"] body[data-active-engine="hermes"] .lang-option-check {
   color: #EAB308;
 }
-[data-theme="dark"] body[data-active-engine="hermes"] .sidebar-meta,
-[data-theme="dark"] body[data-active-engine="hermes"] .sidebar-link,
 [data-theme="dark"] body[data-active-engine="hermes"] .sidebar-version {
   color: #78716C;
-}
-[data-theme="dark"] body[data-active-engine="hermes"] .sidebar-link:hover {
-  color: #EAB308;
 }
 
 /* ==========================================================================

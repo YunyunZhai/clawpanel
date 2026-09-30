@@ -3338,7 +3338,7 @@
     "confirmCancel": "キャンセル"
   },
   "engagement": {
-    "shareText": "OpenClaw を管理しやすいオープンソースの管理パネル「ClawPanel」をおすすめします。すばやくセットアップでき、モデルや Agent の管理も簡単で、トラブル対応用の AI アシスタントも内蔵しています: https://claw.qt.cool",
+    "shareText": "OpenClaw を管理しやすいオープンソースの管理パネル「ClawPanel」をおすすめします。すばやくセットアップでき、モデルや Agent の管理も簡単で、トラブル対応用の AI アシスタントも内蔵しています: https://aigod.xin",
     "title": "ClawPanel を使っていただきありがとうございます",
     "message": "ClawPanel は<strong>完全オープンソースで無料</strong>のプロジェクトで、QingchenCloud チームが継続的に保守・更新しています。もし役に立ったなら、私たちにとって一番の励みは次のような応援です：",
     "starTitle": "GitHub Star",

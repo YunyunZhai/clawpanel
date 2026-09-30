@@ -1176,20 +1176,12 @@ body[data-active-engine="xintian"] .lang-option-code {
   color: #A99A8B;
 }
 
-/* Footer meta strip */
-body[data-active-engine="xintian"] .sidebar-meta {
+/* Footer version text (moved into the tools row) */
+body[data-active-engine="xintian"] .sidebar-version {
   font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
   font-size: 10.5px;
-  padding: 8px 14px 4px;
   color: #A99A8B;
 }
-body[data-active-engine="xintian"] .sidebar-link {
-  color: #A99A8B;
-  transition: color 180ms;
-}
-body[data-active-engine="xintian"] .sidebar-link:hover { color: #EA580C; }
-body[data-active-engine="xintian"] .sidebar-version { color: #A99A8B; }
-
 /* ---- Dark mode variants (warm espresso, not cool slate) ---- */
 [data-theme="dark"] body[data-active-engine="xintian"] #sidebar {
   background: #1C130D;
@@ -1271,12 +1263,9 @@ body[data-active-engine="xintian"] .sidebar-version { color: #A99A8B; }
 [data-theme="dark"] body[data-active-engine="xintian"] .lang-option-check {
   color: #FB923C;
 }
-[data-theme="dark"] body[data-active-engine="xintian"] .sidebar-meta,
-[data-theme="dark"] body[data-active-engine="xintian"] .sidebar-link,
 [data-theme="dark"] body[data-active-engine="xintian"] .sidebar-version {
   color: #8A7560;
 }
-[data-theme="dark"] body[data-active-engine="xintian"] .sidebar-link:hover { color: #FB923C; }
 [data-theme="dark"] body[data-active-engine="xintian"] .sidebar-logo {
   background-image: url('/images/xintian/logo-icon-128.png');
 }

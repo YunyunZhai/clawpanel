@@ -33,7 +33,7 @@
 
 ClawPanel is a visual management panel supporting multiple AI Agent frameworks, currently with [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) and [Hermes Agent](https://github.com/nousresearch/hermes-agent) dual-engine support. It features a **built-in intelligent AI assistant** that helps you install, auto-diagnose configurations, troubleshoot issues, and fix errors. 8 tools + 4 modes + interactive Q&A — easy to manage for beginners and experts alike.
 
-> 🌐 **Website**: [claw.qt.cool](https://claw.qt.cool/) | 📦 **Download**: [Official Download Center](https://claw.qt.cool/download) | Fallback: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
+> 🌐 **Website**: [aigod.xin](https://aigod.xin/) | 📦 **Download**: [Official Download Center](https://aigod.xin/download) | Fallback: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
 ### 🧪 Free Testing: QingChen Cloud
 
@@ -103,7 +103,7 @@ A community of passionate AI Agent developers and enthusiasts — join us!
 
 ## Download & Install
 
-Go to the [official download center](https://claw.qt.cool/download) for the latest version. It auto-detects your OS and also lets you pick Windows, macOS, or Linux packages manually. GitHub Releases remain available as a fallback.
+Go to the [official download center](https://aigod.xin/download) for the latest version. It auto-detects your OS and also lets you pick Windows, macOS, or Linux packages manually. GitHub Releases remain available as a fallback.
 
 ### macOS
 
@@ -353,10 +353,10 @@ If you find this project useful, consider supporting us via USDT (BNB Smart Chai
 
 - **Email**: [support@qctx.net](mailto:support@qctx.net)
 - **Website**: [qingchencloud.com](https://qingchencloud.com)
-- **Product**: [claw.qt.cool](https://claw.qt.cool)
+- **Product**: [aigod.xin](https://aigod.xin)
 
 ## License
 
 This project is licensed under [AGPL-3.0](LICENSE). For commercial/proprietary use without open-source requirements, contact us for a commercial license.
 
-© 2026 QingchenCloud (武汉晴辰天下网络科技有限公司) | [claw.qt.cool](https://claw.qt.cool)
+© 2026 QingchenCloud (武汉晴辰天下网络科技有限公司) | [aigod.xin](https://aigod.xin)

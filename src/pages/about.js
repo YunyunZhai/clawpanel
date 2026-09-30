@@ -89,8 +89,9 @@ export async function render() {
 async function loadXintianData(page) {
   const cards = page.querySelector('#version-cards')
   const panelVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.1.0'
-  const panelUpdateHtml = `<span style="color:var(--text-tertiary)">${t('about.checkingUpdate')}</span>`
-  checkNewVersion(cards, panelVersion)
+  const panelUpdateHtml = ''
+  // 已停用对外网络连接：不再请求官网版本接口。
+  // checkNewVersion(cards, panelVersion)
 
   cards.innerHTML = `
     <div class="stat-card">
@@ -126,8 +127,9 @@ async function loadHermesData(page) {
 
     const panelVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.1.0'
 
-    let panelUpdateHtml = `<span style="color:var(--text-tertiary)">${t('about.checkingUpdate')}</span>`
-    checkNewVersion(cards, panelVersion)
+    let panelUpdateHtml = ''
+    // 已停用对外网络连接：不再请求官网版本接口。
+    // checkNewVersion(cards, panelVersion)
 
     const installed = !!hermesInfo?.installed
     const gwRunning = !!hermesInfo?.gatewayRunning
@@ -287,8 +289,9 @@ async function loadData(page) {
     // 尝试从 Tauri API 获取 ClawPanel 自身版本号，失败则 fallback
     const panelVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.1.0'
 
-    let panelUpdateHtml = `<span style="color:var(--text-tertiary)">${t('about.checkingUpdate')}</span>`
-    checkNewVersion(cards, panelVersion)
+    let panelUpdateHtml = ''
+    // 已停用对外网络连接：不再请求官网版本接口。
+    // checkNewVersion(cards, panelVersion)
 
     const isInstalled = !!version.current
     const btnSm = 'padding:2px 8px;font-size:var(--font-size-xs)'
@@ -715,14 +718,14 @@ async function checkNewVersion(cards, panelVersion) {
       meta.innerHTML = `
         <div class="panel-update-status"><span class="panel-update-warning">⚠️ ${t('about.versionMismatch', { frontend: panelVersion, binary: binaryVersion })}</span></div>
         <div class="panel-update-actions">
-          <a class="btn btn-primary btn-sm" href="https://claw.qt.cool" target="_blank" rel="noopener">${t('about.downloadFullInstaller')}</a>
+          <a class="btn btn-primary btn-sm" href="https://aigod.xin" target="_blank" rel="noopener">${t('about.downloadFullInstaller')}</a>
         </div>
       `
     } else {
       meta.innerHTML = `
         <div class="panel-update-status"><span>${t('about.checkUpdateFailed')}</span></div>
         <div class="panel-update-actions">
-          <a class="btn btn-secondary btn-sm" href="https://claw.qt.cool" target="_blank" rel="noopener">${t('about.goToWebsite')}</a>
+          <a class="btn btn-secondary btn-sm" href="https://aigod.xin" target="_blank" rel="noopener">${t('about.goToWebsite')}</a>
         </div>
       `
     }

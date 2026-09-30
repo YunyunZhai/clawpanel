@@ -30,7 +30,7 @@
 
 ClawPanel là bảng quản lý trực quan hỗ trợ nhiều AI Agent framework, hiện tại hỗ trợ [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) và [Hermes Agent](https://github.com/nousresearch/hermes-agent) động cơ kép. Tích hợp **trợ lý AI thông minh**, giúp bạn cài đặt, tự động chẩn đoán cấu hình, xử lý sự cố và sửa lỗi. 8 công cụ + 4 chế độ + hỏi đáp tương tác — dễ dàng quản lý cho cả người mới và chuyên gia.
 
-> 🌐 **Website**: [claw.qt.cool](https://claw.qt.cool/) | 📦 **Tải xuống**: [Trung tâm tải xuống chính thức](https://claw.qt.cool/download) | Dự phòng: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
+> 🌐 **Website**: [aigod.xin](https://aigod.xin/) | 📦 **Tải xuống**: [Trung tâm tải xuống chính thức](https://aigod.xin/download) | Dự phòng: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
 ### 🧪 Thử nghiệm miễn phí: QingChen Cloud
 
@@ -96,7 +96,7 @@ Cộng đồng các nhà phát triển và người dùng đam mê AI Agent — 
 
 ## Tải xuống & Cài đặt
 
-Truy cập [trung tâm tải xuống chính thức](https://claw.qt.cool/download) để tải phiên bản mới nhất. GitHub Releases vẫn là đường dẫn dự phòng:
+Truy cập [trung tâm tải xuống chính thức](https://aigod.xin/download) để tải phiên bản mới nhất. GitHub Releases vẫn là đường dẫn dự phòng:
 
 | Nền tảng | Trình cài đặt |
 |----------|--------------|
@@ -181,10 +181,10 @@ If you find this project useful, consider supporting us via USDT (BNB Smart Chai
 
 - **Email**: [support@qctx.net](mailto:support@qctx.net)
 - **Website**: [qingchencloud.com](https://qingchencloud.com)
-- **Product**: [claw.qt.cool](https://claw.qt.cool)
+- **Product**: [aigod.xin](https://aigod.xin)
 
 ## Giấy phép
 
 [AGPL-3.0](LICENSE). Liên hệ để được cấp phép thương mại.
 
-© 2026 QingchenCloud | [claw.qt.cool](https://claw.qt.cool)
+© 2026 QingchenCloud | [aigod.xin](https://aigod.xin)

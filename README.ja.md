@@ -30,7 +30,7 @@
 
 ClawPanel は複数の AI Agent フレームワークをサポートするビジュアル管理パネルで、現在 [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) と [Hermes Agent](https://github.com/nousresearch/hermes-agent) のデュアルエンジンをサポートしています。**インテリジェント AI アシスタントを内蔵**し、ワンクリックインストール、設定の自動診断、問題の特定と修復をサポートします。8 つのツール + 4 つのモード + インタラクティブ Q&A で、初心者からエキスパートまで簡単に管理できます。
 
-> 🌐 **ウェブサイト**: [claw.qt.cool](https://claw.qt.cool/) | 📦 **ダウンロード**: [公式ダウンロードセンター](https://claw.qt.cool/download) | 予備: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
+> 🌐 **ウェブサイト**: [aigod.xin](https://aigod.xin/) | 📦 **ダウンロード**: [公式ダウンロードセンター](https://aigod.xin/download) | 予備: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
 ### 🧪 無料テスト：QingChen Cloud
 
@@ -96,7 +96,7 @@ AI Agent に情熱を持つ開発者とユーザーのコミュニティ — ぜ
 
 ## ダウンロードとインストール
 
-[公式ダウンロードセンター](https://claw.qt.cool/download) から最新版をダウンロードしてください。GitHub Releases は予備のダウンロード先です：
+[公式ダウンロードセンター](https://aigod.xin/download) から最新版をダウンロードしてください。GitHub Releases は予備のダウンロード先です：
 
 | プラットフォーム | インストーラー |
 |-----------------|---------------|
@@ -206,10 +206,10 @@ If you find this project useful, consider supporting us via USDT (BNB Smart Chai
 
 - **Email**: [support@qctx.net](mailto:support@qctx.net)
 - **Website**: [qingchencloud.com](https://qingchencloud.com)
-- **Product**: [claw.qt.cool](https://claw.qt.cool)
+- **Product**: [aigod.xin](https://aigod.xin)
 
 ## ライセンス
 
 [AGPL-3.0](LICENSE) ライセンス。商用利用については商用ライセンスをお問い合わせください。
 
-© 2026 QingchenCloud | [claw.qt.cool](https://claw.qt.cool)
+© 2026 QingchenCloud | [aigod.xin](https://aigod.xin)
