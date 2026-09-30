@@ -220,86 +220,6 @@ pub async fn oneapi_get_balance() -> Result<Value, String> {
     }))
 }
 
-/// 获取 OneAPI 配置
-/// 在账号下挑选可用的 relay token。
-/// 优先复用 new-api 注册时自动生成的「<username>的初始令牌」，
-/// 其次取最早创建的「启用 + 永不过期 + 无限额度」token。
-/// 返回 (token 对象, 是否为本次新建)
-async fn ensure_relay_token(
-    client: &reqwest::Client,
-    url: &str,
-    cookie: &str,
-    user_id: i64,
-    username: &str,
-) -> Result<(Value, bool), String> {
-    let list_tokens = || async {
-        let body: Value = client
-            .get(format!("{url}/api/token/?p=1&page_size=100"))
-            .header("Cookie", cookie)
-            .header("New-Api-User", user_id.to_string())
-            .send()
-            .await
-            .map_err(|e| format!("查询令牌失败: {e}"))?
-            .json()
-            .await
-            .map_err(|e| format!("解析令牌列表失败: {e}"))?;
-        check_oneapi_body(&body, "查询令牌")?;
-        let items = body
-            .pointer("/data/items")
-            .and_then(|v| v.as_array())
-            .cloned()
-            .unwrap_or_default();
-        Ok::<Vec<Value>, String>(items)
-    };
-
-    let initial_name = format!("{username}的初始令牌");
-    let enabled = |t: &Value| t.get("status").and_then(|v| v.as_i64()) == Some(1);
-    let unlimited = |t: &Value| t.get("unlimited_quota").and_then(|v| v.as_bool()) == Some(true);
-    let never_expires = |t: &Value| t.get("expired_time").and_then(|v| v.as_i64()) == Some(-1);
-
-    let pick = |items: &[Value]| -> Option<Value> {
-        if let Some(t) = items
-            .iter()
-            .find(|t| enabled(t) && t.get("name").and_then(|v| v.as_str()) == Some(initial_name.as_str()))
-        {
-            return Some(t.clone());
-        }
-        items
-            .iter()
-            .filter(|t| enabled(t) && unlimited(t) && never_expires(t))
-            .min_by_key(|t| t.get("id").and_then(|v| v.as_i64()).unwrap_or(i64::MAX))
-            .cloned()
-    };
-
-    if let Some(token) = pick(&list_tokens().await?) {
-        return Ok((token, false));
-    }
-
-    // 没有可用 token：建一个 ClawPanel 专用令牌
-    let body: Value = client
-        .post(format!("{url}/api/token/"))
-        .header("Cookie", cookie)
-        .header("New-Api-User", user_id.to_string())
-        .json(&json!({
-            "name": "ClawPanel",
-            "expired_time": -1,
-            "unlimited_quota": true,
-            "remain_quota": 0,
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("创建令牌失败: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("解析创建令牌响应失败: {e}"))?;
-    check_oneapi_body(&body, "创建令牌")?;
-
-    // 创建接口不回传 key，必须重新列表读取
-    let items = list_tokens().await?;
-    let token = pick(&items).ok_or("创建令牌后仍未在列表中找到可用令牌")?;
-    Ok((token, true))
-}
-
 /// 读取会话令牌列表，返回 items 数组
 async fn fetch_token_items(
     client: &reqwest::Client,
@@ -323,6 +243,65 @@ async fn fetch_token_items(
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default())
+}
+
+/// 在账号下挑选可用的 relay token。
+/// 优先复用 new-api 注册时自动生成的「<username>的初始令牌」，
+/// 其次取最早创建的「启用 + 永不过期 + 无限额度」token，都没有才新建。
+/// 返回 (token 对象, 是否为本次新建)
+async fn ensure_relay_token(
+    client: &reqwest::Client,
+    url: &str,
+    cookie: &str,
+    user_id: i64,
+    username: &str,
+) -> Result<(Value, bool), String> {
+    let initial_name = format!("{username}的初始令牌");
+    let enabled = |t: &Value| t.get("status").and_then(|v| v.as_i64()) == Some(1);
+    let unlimited = |t: &Value| t.get("unlimited_quota").and_then(|v| v.as_bool()) == Some(true);
+    let never_expires = |t: &Value| t.get("expired_time").and_then(|v| v.as_i64()) == Some(-1);
+    let pick = |items: &[Value]| -> Option<Value> {
+        items
+            .iter()
+            .find(|t| {
+                enabled(t) && t.get("name").and_then(|v| v.as_str()) == Some(initial_name.as_str())
+            })
+            .or_else(|| {
+                items
+                    .iter()
+                    .filter(|t| enabled(t) && unlimited(t) && never_expires(t))
+                    .min_by_key(|t| t.get("id").and_then(|v| v.as_i64()).unwrap_or(i64::MAX))
+            })
+            .cloned()
+    };
+
+    if let Some(token) = pick(&fetch_token_items(client, url, cookie, user_id).await?) {
+        return Ok((token, false));
+    }
+
+    // 没有可用 token：建一个 ClawPanel 专用令牌
+    let body: Value = client
+        .post(format!("{url}/api/token/"))
+        .header("Cookie", cookie)
+        .header("New-Api-User", user_id.to_string())
+        .json(&json!({
+            "name": "ClawPanel",
+            "expired_time": -1,
+            "unlimited_quota": true,
+            "remain_quota": 0,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("创建令牌失败: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("解析创建令牌响应失败: {e}"))?;
+    check_oneapi_body(&body, "创建令牌")?;
+
+    // 创建接口不回传 key，必须重新列表读取
+    let items = fetch_token_items(client, url, cookie, user_id).await?;
+    let token = pick(&items).ok_or("创建令牌后仍未在列表中找到可用令牌")?;
+    Ok((token, true))
 }
 
 /// 从 /v1/models 响应里提取模型 id 列表（兼容对象与字符串两种元素）
@@ -374,16 +353,20 @@ async fn fetch_model_ids(
     }
 
     // 兜底：/api/user/models 返回分组内全部模型（含未配比率的）
-    client
+    let resp = match client
         .get(format!("{url}/api/user/models"))
         .header("Cookie", cookie)
         .header("New-Api-User", user_id.to_string())
         .send()
         .await
-        .ok()
-        .and_then(|r| r.json::<Value>().await.ok())
-        .map(|b| parse_model_ids(&b))
-        .unwrap_or_default()
+    {
+        Ok(resp) => resp,
+        Err(_) => return Vec::new(),
+    };
+    match resp.json::<Value>().await {
+        Ok(body) => parse_model_ids(&body),
+        Err(_) => Vec::new(),
+    }
 }
 
 /// 确保 openclaw.json 里存在名为 `newapi` 的 provider，指向当前 OneAPI 网关。
