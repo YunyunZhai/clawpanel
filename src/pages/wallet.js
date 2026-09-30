@@ -38,6 +38,8 @@ export async function render() {
   if (config.url && config.username && config.password) {
     renderConfigured(body, config)
     await loadBalance(body, config)
+    // 余额查询成功后顺带确保网关 provider 就绪（后端幂等，重复调用无副作用）
+    ensureNewapiProvider()
   } else {
     renderConfigForm(body, config)
   }
@@ -47,6 +49,8 @@ export async function render() {
 export function cleanup() {
   stopPolling()
   _page = null
+  // 重新进入钱包页时重新执行一次 ensure（后端幂等）
+  _ensureDone = false
 }
 
 function stopPolling() {
@@ -193,6 +197,49 @@ async function loadBalance(body, config) {
       toast(message, 'error')
     }
   }
+}
+
+let _ensureDone = false
+
+/**
+ * 确保 openclaw.json 里有 `newapi` provider。
+ * - 不自动改默认模型：当前主模型可能是有意配置的，静默改会打断用户
+ * - 内容一致时后端返回 changed=false，不写文件也无需重启
+ * - 0 模型时提示用户网关还没配渠道
+ */
+async function ensureNewapiProvider() {
+  if (_ensureDone) return
+  _ensureDone = true
+  let result
+  try {
+    result = await api.oneapiEnsureProvider()
+  } catch (e) {
+    toast(String(e?.message || e), 'error')
+    return
+  }
+  if (!result?.ok) return
+
+  if (result.existing_models_kept) {
+    toast(t('wallet.providerKeptModels'), 'info', { duration: 5000 })
+    return
+  }
+  if (result.model_count === 0) {
+    toast(t('wallet.providerNoModels'), 'warning', { duration: 6000 })
+    return
+  }
+  if (!result.changed) return
+
+  // 新增/更新了 provider：提示已就绪，并提供跳转模型页的入口
+  const goto = document.createElement('button')
+  goto.className = 'btn btn-sm btn-primary'
+  goto.textContent = t('wallet.openModels')
+  goto.onclick = () => {
+    location.hash = '#/models'
+  }
+  toast(t('wallet.providerReady', { models: result.model_count }), 'success', {
+    action: goto,
+    duration: 6000,
+  })
 }
 
 function openRechargeModal(config) {

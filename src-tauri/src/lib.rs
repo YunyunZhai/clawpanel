@@ -138,6 +138,7 @@ pub fn run() {
             config::relaunch_app,
             // OneAPI 钱包（余额 / 充值 / 连接配置）
             oneapi::oneapi_get_balance,
+            oneapi::oneapi_ensure_provider,
             oneapi::oneapi_get_config,
             oneapi::oneapi_save_config,
             oneapi::oneapi_test_connection,

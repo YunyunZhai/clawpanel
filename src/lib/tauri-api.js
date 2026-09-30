@@ -506,6 +506,7 @@ export const api = {
   oneapiGetConfig: () => invoke('oneapi_get_config'),
   oneapiSaveConfig: (config) => invoke('oneapi_save_config', { config }),
   oneapiGetBalance: () => invoke('oneapi_get_balance'),
+  oneapiEnsureProvider: () => invoke('oneapi_ensure_provider'),
   oneapiTestConnection: () => invoke('oneapi_test_connection'),
   oneapiGetTopupInfo: () => invoke('oneapi_get_topup_info'),
   oneapiRequestEpay: (amount, method) => invoke('oneapi_request_epay', { amount, payment_method: method }),

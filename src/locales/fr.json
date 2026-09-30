@@ -5778,6 +5778,10 @@
     "testConnection": "Tester la connexion",
     "connectionOK": "Connexion OK",
     "connectionFailed": "Échec de la connexion",
-    "configRequired": "Renseignez d'abord l'URL, l'identifiant et le mot de passe OneAPI"
+    "configRequired": "Renseignez d'abord l'URL, l'identifiant et le mot de passe OneAPI",
+    "providerReady": "Passerelle connectée, {models} modèles ajoutés",
+    "providerNoModels": "Passerelle sans modèle, configuration conservée. Configurez les canaux et rouvrez la page",
+    "providerKeptModels": "La passerelle n’a renvoyé aucun modèle, liste conservée",
+    "openModels": "Ouvrir les modèles"
   }
 }

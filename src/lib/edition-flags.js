@@ -21,6 +21,17 @@ export const HIDE_ABOUT_COMMUNITY = true
 /** 隐藏社群导流弹窗（engagement.js，Gateway 启动成功等时机弹出） */
 export const HIDE_ENGAGEMENT = true
 
+/**
+ * 隐藏「模型渠道」这一层重复配置。
+ *
+ * models.js 已经能直接读写 openclaw.json 的 models.providers，渠道页在便携版
+ * 只有一个运行时时没有第二个消费方，所以入口和路由一并关掉。
+ * lib/model-channels.js 与 Rust 的 model_channels.rs 仍然保留：被裁掉的
+ * Hermes / OpenCode / DeepSeek Harness 引擎代码还在仓库里，需要这些端口存储
+ * 和私密 key 读取；改回 false 就能恢复完整渠道页。
+ */
+export const HIDE_MODEL_CHANNELS = true
+
 /** 便携版唯一内置的运行时 */
 export const SOLE_ENGINE_ID = 'openclaw'
 
@@ -37,6 +48,7 @@ export function isEngineChoiceNeeded() {
 /** 路由是否可见（用于侧栏菜单项与引擎路由表） */
 export function isRouteVisible(route) {
   if (HIDE_ASSISTANT && route === '/assistant') return false
+  if (HIDE_MODEL_CHANNELS && route === '/model-channels') return false
   if (!isEngineChoiceNeeded() && route === '/engine-select') return false
   return true
 }

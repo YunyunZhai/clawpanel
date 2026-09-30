@@ -5778,6 +5778,10 @@
     "testConnection": "Verbindung testen",
     "connectionOK": "Verbindung OK",
     "connectionFailed": "Verbindung fehlgeschlagen",
-    "configRequired": "Bitte zuerst OneAPI-Adresse, Benutzername und Passwort eingeben"
+    "configRequired": "Bitte zuerst OneAPI-Adresse, Benutzername und Passwort eingeben",
+    "providerReady": "Gateway verbunden, {models} Modelle hinzugefügt",
+    "providerNoModels": "Gateway hat noch keine Modelle; Konfiguration behalten. Kanäle einrichten und Seite neu öffnen",
+    "providerKeptModels": "Gateway lieferte keine Modelle, bestehende Liste behalten",
+    "openModels": "Zu den Modellen"
   }
 }

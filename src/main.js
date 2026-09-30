@@ -19,7 +19,7 @@ import { toast } from './components/toast.js'
 import { initI18n, t, getLang, setLang, getAvailableLangs } from './lib/i18n.js'
 import { renderMarkdown } from './lib/markdown.js'
 import { initFeatureGates } from './lib/feature-gates.js'
-import { HIDE_ASSISTANT } from './lib/edition-flags.js'
+import { HIDE_ASSISTANT, HIDE_MODEL_CHANNELS } from './lib/edition-flags.js'
 import { onKernelChange } from './lib/kernel.js'
 import { showFloorBlocker, hideFloorBlocker } from './components/floor-blocker.js'
 import { registerEngine, initEngineManager, getActiveEngine, getActiveEngineId, needsInitialEngineChoice, isEngineSetupDeferred, adoptActiveEngineSelection, onEngineChange } from './lib/engine-manager.js'
@@ -648,7 +648,10 @@ async function boot() {
   registerEngine(xintianEngine)
   registerRoute('/engine-select', () => import('./pages/engine-select.js'))
   registerRoute('/media', () => import('./pages/media.js'))
-  registerRoute('/model-channels', () => import('./pages/model-channels.js'))
+  // 渠道页与 models.js 的 provider 配置重复，便携版不注册（改回 HIDE_MODEL_CHANNELS 即可恢复）
+  if (!HIDE_MODEL_CHANNELS) {
+    registerRoute('/model-channels', () => import('./pages/model-channels.js'))
+  }
 
   // 初始化引擎管理器：读取 clawpanel.json 的 engineMode，注册对应路由
   await initEngineManager()

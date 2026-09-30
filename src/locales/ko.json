@@ -5778,6 +5778,10 @@
     "testConnection": "연결 테스트",
     "connectionOK": "연결 정상",
     "connectionFailed": "연결 실패",
-    "configRequired": "먼저 OneAPI 주소, 아이디, 비밀번호를 입력하세요"
+    "configRequired": "먼저 OneAPI 주소, 아이디, 비밀번호를 입력하세요",
+    "providerReady": "게이트웨이에 연결되어 모델 {models}개를 추가했습니다",
+    "providerNoModels": "게이트웨이에 모델이 없습니다. 관리 화면에서 채널을 설정한 뒤 다시 열어 주세요",
+    "providerKeptModels": "게이트웨이가 모델을 반환하지 않아 기존 목록을 유지했습니다",
+    "openModels": "모델 페이지로"
   }
 }

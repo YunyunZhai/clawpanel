@@ -5778,6 +5778,10 @@
     "testConnection": "測試連線",
     "connectionOK": "連線正常",
     "connectionFailed": "連線失敗",
-    "configRequired": "請先填寫 OneAPI 位址、帳號和密碼"
+    "configRequired": "請先填寫 OneAPI 位址、帳號和密碼",
+    "providerReady": "已接入網關，已新增 {models} 個模型",
+    "providerNoModels": "網關暫無可用模型，已保留服務位址。請在網關後台設定渠道後重新開啟本頁",
+    "providerKeptModels": "網關暫未回傳模型，已保留原有模型列表",
+    "openModels": "前往模型頁"
   }
 }

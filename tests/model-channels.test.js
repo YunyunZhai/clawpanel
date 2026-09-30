@@ -9,6 +9,7 @@ const page = read('../src/pages/model-channels.js')
 const modelsPage = read('../src/pages/models.js')
 const mainJs = read('../src/main.js')
 const sidebar = read('../src/components/sidebar.js')
+const flags = read('../src/lib/edition-flags.js')
 const tauriApi = read('../src/lib/tauri-api.js')
 const devApi = read('../scripts/dev-api.js')
 const rustLib = read('../src-tauri/src/lib.rs')
@@ -77,9 +78,15 @@ test('同步与删除必须经过确认弹窗', () => {
 })
 
 test('页面注册链完整（路由 + 侧栏 + 语言包）', () => {
-  assert.match(mainJs, /registerRoute\('\/model-channels'/, 'main.js 缺少路由注册')
-  assert.match(sidebar, /route: '\/model-channels'/, '侧栏缺少入口')
-  assert.match(sidebar, /'channels-hub':/, '侧栏缺少图标')
+  // 便携版把渠道页判为与 models.js 重复：开关关闭时仍走原注册路径，
+  // 打开时侧栏/路由都不出现，且 models 页不再内联渠道区。
+  assert.match(mainJs, /if \(!HIDE_MODEL_CHANNELS\) \{\s*registerRoute\('\/model-channels'/, 'main.js 缺少受开关控制的路由注册')
+  assert.match(mainJs, /import \{ HIDE_ASSISTANT, HIDE_MODEL_CHANNELS \}/, 'main.js 未导入 HIDE_MODEL_CHANNELS')
+  assert.match(flags, /export const HIDE_MODEL_CHANNELS = true/, '便携版未默认关闭模型渠道层')
+  assert.match(flags, /route === '\/model-channels'\) return false/, 'isRouteVisible 未隐藏 /model-channels')
+  assert.doesNotMatch(sidebar, /route: '\/model-channels'/, '侧栏不应再暴露模型渠道入口')
+  assert.doesNotMatch(modelsPage, /loadModelsChannels|models-channels-section/, '模型页不应再内联渠道区')
+  // 语言包与后端存储保留：被裁掉的引擎代码仍依赖渠道端口和私密 key 读取
   assert.match(localesIndex, /modelChannels/, '语言包聚合缺少 modelChannels 模块')
 })
 
