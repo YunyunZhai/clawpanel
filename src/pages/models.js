@@ -51,14 +51,6 @@ export async function render() {
       <div class="config-section"><div class="stat-card loading-placeholder" style="height:120px"></div></div>
       <div class="config-section"><div class="stat-card loading-placeholder" style="height:120px"></div></div>
     </div>
-    <div class="config-section" id="models-channels-section" style="display:none">
-      <div class="config-section-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>${t('models.channelsSectionTitle')}</span>
-        <button class="btn btn-sm btn-primary" id="btn-models-add-channel">${icon('plus-circle', 14)} ${t('models.channelsAddChannel')}</button>
-      </div>
-      <div class="form-hint" style="margin-bottom:var(--space-sm)">${t('models.channelsSectionHint')}</div>
-      <div id="models-channels-list"></div>
-    </div>
   `
 
   const state = { config: null, search: '', undoStack: [] }
@@ -1156,7 +1148,6 @@ function bindTopActions(page, state) {
   page.querySelector('#btn-add-provider').onclick = () => addProvider(page, state)
   page.querySelector('#btn-import-client').onclick = () => importClientConfigs(page, state)
   page.querySelector('#btn-undo').onclick = () => undo(page, state)
-  loadModelsChannels(page, state)
 }
 
 function uniqueProviderKey(providers, desired) {
@@ -1885,75 +1876,6 @@ async function testModel(btn, state, providerKey, idx) {
   }
 }
 
-// ===== 内联模型渠道管理 =====
-
 function apiTypeLabel(value) {
   return API_TYPES.find(item => item.value === value)?.label || value
-}
-
-async function loadModelsChannels(page, state) {
-  const section = page.querySelector('#models-channels-section')
-  if (!section) return
-
-  let channelsDoc
-  try {
-    channelsDoc = await api.readModelChannels()
-  } catch {
-    return
-  }
-  const channels = channelsDoc?.channels || []
-  if (!channels.length) return
-
-  section.style.display = ''
-  const list = section.querySelector('#models-channels-list')
-  list.innerHTML = channels.map(channel => {
-    const models = channel.models || []
-    const keyInfo = channel.apiKeySaved
-      ? t('modelChannels.keySaved', { mask: channel.apiKeyMask || '***' })
-      : t('modelChannels.keyMissing')
-    return `
-      <div style="border:1px solid var(--border-primary);border-radius:8px;padding:12px 14px;margin-bottom:8px;background:var(--bg-secondary);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <div style="font-weight:600;font-size:var(--font-size-sm);margin-bottom:4px">${escapeHtml(channel.name)}</div>
-          <div style="font-size:var(--font-size-xs);color:var(--text-tertiary);display:flex;gap:8px;flex-wrap:wrap">
-            <span>${escapeHtml(apiTypeLabel(channel.apiType))}</span>
-            <span>${t('modelChannels.modelCount', { count: models.length })}</span>
-            <span>${escapeHtml(keyInfo)}</span>
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-xs btn-primary" data-action="mch-sync-openclaw" data-ch-id="${escapeHtml(channel.id)}">${icon('upload', 11)} ${t('modelChannels.syncOpenclaw')}</button>
-        </div>
-      </div>
-    `
-  }).join('')
-
-  // Bind sync buttons
-  list.querySelectorAll('[data-action="mch-sync-openclaw"]').forEach(btn => {
-    btn.onclick = async () => {
-      const chId = btn.dataset.chId
-      const channel = channels.find(c => c.id === chId)
-      if (!channel || !channel.apiKeySaved) {
-        toast(t('modelChannels.noKeyForSync'), 'warning')
-        return
-      }
-      try {
-        const { channelProviderKey } = await import('../lib/model-channels.js')
-        const { syncChannelToOpenclaw } = await import('../lib/model-channels.js')
-        const providerKey = channelProviderKey(channel)
-        const ok = await showConfirm(t('modelChannels.syncOpenclawConfirm', { key: providerKey, count: (channel.models || []).length }), { variant: 'primary' })
-        if (!ok) return
-        const result = await syncChannelToOpenclaw(channel, { setDefault: false })
-        toast(t('modelChannels.syncDone', { target: 'OpenClaw' }), 'success')
-        loadConfig(page, state)
-      } catch (e) {
-        toast(e?.message || String(e), 'error')
-      }
-    }
-  })
-
-  // "添加渠道"按钮
-  section.querySelector('#btn-models-add-channel').onclick = () => {
-    window.location.hash = '#/model-channels'
-  }
 }

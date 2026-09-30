@@ -1162,6 +1162,62 @@ pub fn save_openclaw_json(config: &Value) -> Result<(), String> {
     write_openclaw_config(config.clone())
 }
 
+/// provider 的 models 是否为「没有可用模型」
+fn provider_models_empty(provider: &Value) -> bool {
+    provider
+        .get("models")
+        .and_then(|m| m.as_array())
+        .map(|a| a.is_empty())
+        .unwrap_or(true)
+}
+
+/// 计算 upsert 后应写入的 provider 值。
+///
+/// 远端返回 0 个模型时视为「暂时查不到」（网关可能还没配渠道），沿用本地已有的
+/// provider，避免把用户已配好的模型列表清空。返回 `(最终值, 是否沿用了本地模型)`。
+fn resolve_upserted_provider(existing: Option<&Value>, incoming: &Value) -> (Value, bool) {
+    let prev_has_models = existing
+        .map(|p| !provider_models_empty(p))
+        .unwrap_or(false);
+    if provider_models_empty(incoming) && prev_has_models {
+        return (existing.cloned().unwrap_or_else(|| incoming.clone()), true);
+    }
+    (incoming.clone(), false)
+}
+
+/// 把 provider upsert 进 openclaw.json 的 `models.providers`，保留其余 provider 不动。
+///
+/// 返回 `(是否实际写入, 0 模型时是否保留了已有模型列表)`：
+/// - 内容完全一致 → 不写文件，调用方无需重启网关
+/// - 远端返回 0 个模型 → 视为「暂时查不到」，保留用户原有模型列表，避免误清空
+pub fn upsert_openclaw_provider(key: &str, provider: &Value) -> Result<(bool, bool), String> {
+    let mut config = read_openclaw_config()?;
+
+    let existing = config.pointer(&format!("/models/providers/{key}")).cloned();
+    let (next, kept_existing_models) =
+        resolve_upserted_provider(existing.as_ref(), provider);
+
+    if config.pointer(&format!("/models/providers/{key}")) == Some(&next) {
+        return Ok((false, kept_existing_models));
+    }
+
+    // 确保 models.providers 是对象
+    if !config.get("models").map(|m| m.is_object()).unwrap_or(false) {
+        config["models"] = json!({});
+    }
+    if !config
+        .pointer("/models/providers")
+        .map(|p| p.is_object())
+        .unwrap_or(false)
+    {
+        config["models"]["providers"] = json!({});
+    }
+    config["models"]["providers"][key] = next;
+
+    write_openclaw_config(config)?;
+    Ok((true, kept_existing_models))
+}
+
 fn validate_openclaw_model_candidate(config: &Value) -> Result<(), String> {
     let Some(models) = config.get("models") else {
         return Ok(());
@@ -9418,5 +9474,73 @@ mod write_openclaw_config_merge_tests {
         assert!(!supports_native_config_reload("2026.6.5"));
         assert!(supports_native_config_reload("2026.7.1"));
         assert!(supports_native_config_reload("2026.7.1-zh.2"));
+    }
+}
+
+#[cfg(test)]
+mod upsert_openclaw_provider_tests {
+    use super::resolve_upserted_provider;
+    use serde_json::json;
+
+    fn provider(models: serde_json::Value) -> serde_json::Value {
+        json!({
+            "baseUrl": "http://localhost:3000/v1",
+            "apiKey": "sk-test",
+            "api": "openai-completions",
+            "models": models,
+        })
+    }
+
+    /// 远端模型非空时直接采用远端（并刷新 apiKey）
+    #[test]
+    fn remote_models_win_when_present() {
+        let incoming = provider(json!([{ "id": "glm-4", "name": "glm-4" }]));
+        let (next, kept) = resolve_upserted_provider(None, &incoming);
+        assert!(!kept);
+        assert_eq!(next, incoming);
+    }
+
+    /// 远端 0 模型但本地已有模型 → 沿用本地，不清空
+    #[test]
+    fn empty_remote_keeps_existing_local_models() {
+        let existing = provider(json!([{ "id": "deepseek-chat", "name": "deepseek-chat" }]));
+        let (next, kept) = resolve_upserted_provider(Some(&existing), &provider(json!([])));
+        assert!(kept, "必须报告沿用了本地模型");
+        assert_eq!(
+            next["models"].as_array().unwrap().len(),
+            1,
+            "本地模型列表不能被空数组覆盖"
+        );
+        assert_eq!(next, existing);
+    }
+
+    /// 远端 0 模型且本地也没有 → 照建空 provider
+    #[test]
+    fn empty_remote_and_empty_local_creates_empty_provider() {
+        let incoming = provider(json!([]));
+        let (next, kept) = resolve_upserted_provider(None, &incoming);
+        assert!(!kept);
+        assert_eq!(next, incoming);
+        assert!(next["models"].as_array().unwrap().is_empty());
+    }
+
+    /// 远端恢复模型后能正常覆盖更新（模型数增加）
+    #[test]
+    fn recovered_remote_models_are_applied() {
+        let existing = provider(json!([{ "id": "a", "name": "a" }]));
+        let incoming = provider(json!([{ "id": "a", "name": "a" }, { "id": "b", "name": "b" }]));
+        let (next, kept) = resolve_upserted_provider(Some(&existing), &incoming);
+        assert!(!kept);
+        assert_eq!(next["models"].as_array().unwrap().len(), 2);
+    }
+
+    /// 缺少 models 字段按「空」处理，不能 panic
+    #[test]
+    fn missing_models_field_is_treated_as_empty() {
+        let bare = json!({ "baseUrl": "http://x/v1", "apiKey": "sk-1" });
+        let existing = provider(json!([{ "id": "a", "name": "a" }]));
+        let (next, kept) = resolve_upserted_provider(Some(&existing), &bare);
+        assert!(kept);
+        assert_eq!(next["models"].as_array().unwrap().len(), 1);
     }
 }

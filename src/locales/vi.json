@@ -5778,6 +5778,10 @@
     "testConnection": "Kiểm tra kết nối",
     "connectionOK": "Kết nối bình thường",
     "connectionFailed": "Kết nối thất bại",
-    "configRequired": "Vui lòng nhập địa chỉ, tên đăng nhập và mật khẩu OneAPI"
+    "configRequired": "Vui lòng nhập địa chỉ, tên đăng nhập và mật khẩu OneAPI",
+    "providerReady": "Đã kết nối cổng, thêm {models} mô hình",
+    "providerNoModels": "Cổng chưa có mô hình, đã giữ cấu hình. Hãy cấu hình kênh rồi mở lại trang",
+    "providerKeptModels": "Cổng chưa trả về mô hình, đã giữ danh sách cũ",
+    "openModels": "Mở trang mô hình"
   }
 }

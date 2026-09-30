@@ -5778,6 +5778,10 @@
     "testConnection": "接続テスト",
     "connectionOK": "接続正常",
     "connectionFailed": "接続に失敗しました",
-    "configRequired": "先に OneAPI アドレス、ユーザー名、パスワードを入力してください"
+    "configRequired": "先に OneAPI アドレス、ユーザー名、パスワードを入力してください",
+    "providerReady": "ゲートウェイに接続し、{models} 個のモデルを追加しました",
+    "providerNoModels": "ゲートウェイにモデルがありません。管理画面でチャネルを設定して本ページを開き直してください",
+    "providerKeptModels": "ゲートウェイがモデルを返さなかったため、既存のリストを維持しました",
+    "openModels": "モデルページへ"
   }
 }

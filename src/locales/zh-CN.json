@@ -5778,6 +5778,10 @@
     "testConnection": "测试连接",
     "connectionOK": "连接正常",
     "connectionFailed": "连接失败",
-    "configRequired": "请先填写 OneAPI 地址、账号和密码"
+    "configRequired": "请先填写 OneAPI 地址、账号和密码",
+    "providerReady": "已接入网关，已添加 {models} 个模型",
+    "providerNoModels": "网关暂无可用模型，已保留服务地址。请在网关后台配置渠道后重新打开本页",
+    "providerKeptModels": "网关暂未返回模型，已保留原有模型列表",
+    "openModels": "去模型页"
   }
 }

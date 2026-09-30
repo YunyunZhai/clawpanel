@@ -5778,6 +5778,10 @@
     "testConnection": "Probar conexión",
     "connectionOK": "Conexión correcta",
     "connectionFailed": "Error de conexión",
-    "configRequired": "Introduce la URL, el usuario y la contraseña de OneAPI"
+    "configRequired": "Introduce la URL, el usuario y la contraseña de OneAPI",
+    "providerReady": "Conectado al gateway, {models} modelos añadidos",
+    "providerNoModels": "El gateway aún no tiene modelos; se conserva la configuración. Configura canales y reabre la página",
+    "providerKeptModels": "El gateway no devolvió modelos; se mantuvo la lista",
+    "openModels": "Abrir modelos"
   }
 }
